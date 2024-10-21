@@ -4,8 +4,6 @@
 
 #include "FaderChannel.h"
 
-#define TimeOut 5000
-
 // Functions
 /**************************************************/
 void init();
@@ -55,7 +53,8 @@ FaderChannel faderChannels[CHANNELS] = { // 8 fader channels
 void setup()
 {
   pinMode(POT_INPUT, INPUT);
-  Serial.begin(115200);
+  Serial.begin(9600);
+  usb_rawhid_configure();
   LEDs.begin();
   pinMode(CS_LOCK, OUTPUT);
   digitalWrite(CS_LOCK, LOW);
@@ -97,10 +96,10 @@ void setup()
     faderChannels[i].begin();
   }
 
-  // clear up any data that may be in the buffer (flush didn't work for some reason)
-  while (Serial.available()) {
+  // clear up any data that may be in the buffer
+  while (usb_rawhid_available()) {
     char buf[PACKET_SIZE];
-    Serial.readBytes(buf, PACKET_SIZE);
+    usb_rawhid_recv(buf, 0);
   }
   digitalWrite(CS_LOCK, HIGH); // unlock the screens
   LEDs.clear();
@@ -133,7 +132,7 @@ void loop()
     {
       char sendBuf[PACKET_SIZE];
       sendBuf[0] = REQUEST_ALL_PROCESSES;
-      Serial.write(sendBuf, PACKET_SIZE);
+      usb_rawhid_send(sendBuf, TIMEOUT);
       faderRequest = i;
       faderChannels[i].requestProcessRefresh = false;
     }
@@ -162,10 +161,10 @@ void loop()
 
     faderChannels[i].update();
   }
-  if (Serial.available() >= PACKET_SIZE) // check for serial data
+  if (usb_rawhid_available() >= PACKET_SIZE)
   {
     char buf[PACKET_SIZE];
-    Serial.readBytes(buf, PACKET_SIZE);
+    usb_rawhid_recv(buf, TIMEOUT);
     update(buf);
     LEDs.show();
   }
@@ -241,7 +240,7 @@ void init() // set fader pot and touch values then get initial data from compute
   }
   sendCurrentSelectedProcesses();
   buf[0] = START_NORMAL_BROADCASTS;
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
   normalBroadcast = true;
 }
 
@@ -256,7 +255,7 @@ void sendCurrentSelectedProcesses() // send the processes of the 7 fader channel
     buf[i * 4 + 3] = faderChannels[i + 1].appdata.PID >> 16;
     buf[i * 4 + 4] = faderChannels[i + 1].appdata.PID >> 24;
   }
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
 }
 
 void requestAllProcesses() // requests all sound processes from the computer
@@ -265,10 +264,6 @@ void requestAllProcesses() // requests all sound processes from the computer
   char buf[PACKET_SIZE];
   int a = 0;
   bool started = false;
-  while (Serial.available())
-  {
-    Serial.readBytes(buf, PACKET_SIZE);
-  }
 
   while (true)
   {
@@ -277,15 +272,15 @@ void requestAllProcesses() // requests all sound processes from the computer
     {
       millisStart = millis();
       buf[0] = REQUEST_ALL_PROCESSES;
-      Serial.write(buf, PACKET_SIZE);
+      usb_rawhid_send(buf, TIMEOUT);
     }
 
-    if (Serial.available() >= PACKET_SIZE)
+    if (usb_rawhid_available() >= PACKET_SIZE)
     {
       started = true;
-      Serial.readBytes(buf, PACKET_SIZE);
+      usb_rawhid_recv(buf, TIMEOUT);
       a = update(buf);
-      if (a == 1)
+      if (a == 1)        //TODO: use a different funtion
       {
         break;
       }
@@ -299,12 +294,12 @@ void getMaxVolumes() // get the max volumes of the 7 fader channels from the com
   int iterator = 1;
   buf[0] = REQUEST_CHANNEL_DATA;
   buf[5] = 1; // request master
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
   while (true)
   {
-    if (Serial.available() >= PACKET_SIZE)
+    if (usb_rawhid_available() >= PACKET_SIZE)
     {
-      Serial.readBytes(buf, PACKET_SIZE);
+      usb_rawhid_recv(buf, TIMEOUT);
       update(buf);
       if (iterator > 7)
       {
@@ -316,7 +311,7 @@ void getMaxVolumes() // get the max volumes of the 7 fader channels from the com
       buf[3] = faderChannels[iterator].appdata.PID >> 16;
       buf[4] = faderChannels[iterator].appdata.PID >> 24;
       buf[5] = 0; // request channel data
-      Serial.write(buf, PACKET_SIZE);
+      usb_rawhid_send(buf, TIMEOUT);
       iterator++;
     }
   }
@@ -333,12 +328,12 @@ uint8_t requestIcon(const uint32_t pid) // request the icon of a process from th
   buf[2] = pid >> 8;
   buf[3] = pid >> 16;
   buf[4] = pid >> 24;
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
   while (true)
   {
-    if (Serial.available() >= PACKET_SIZE)
+    if (usb_rawhid_available() >= PACKET_SIZE)
     {
-      Serial.readBytes(buf, PACKET_SIZE);
+      usb_rawhid_recv(buf, TIMEOUT);
 
       if (receivingIcon)
       { // each pixel is 2 bytes and we are expecting a 128x128 icon
@@ -353,7 +348,7 @@ uint8_t requestIcon(const uint32_t pid) // request the icon of a process from th
         currentIconPage++;
         // send 2 in buf[0] to indicate that we are ready for the next page
         buf[0] = ACK;
-        Serial.write(buf, PACKET_SIZE);
+        usb_rawhid_send(buf, TIMEOUT);
         if (currentIconPage == iconPages)
         {
           // we have received all the pages of the icon
@@ -449,14 +444,11 @@ uint8_t update(char *buf) // main update function, some functions use the return
     break;
   case THE_ICON_REQUESTED_IS_DEFAULT:
     return THE_ICON_REQUESTED_IS_DEFAULT;
-  case BUTTON_PUSHED:
+    case BUTTON_PUSHED:
     break;
   default:
-    while (Serial.available()) // trt to get back in sync
-    {
-      Serial.read();
-    }
-    break;
+    Serial.println("Warning: Unknown packet received: " + String(buf[0]));
+    return 1;
   }
   return 0;
 }
@@ -487,7 +479,7 @@ void newPID(const char buf[PACKET_SIZE]) // triggered when new volume process is
       channel.setMute(mute);
       char buf2[PACKET_SIZE];
       buf2[0] = STOP_NORMAL_BROADCASTS;
-      Serial.write(buf2, PACKET_SIZE);
+      usb_rawhid_send(buf2, TIMEOUT);
       if (const uint8_t a = requestIcon(pid); a == THE_ICON_REQUESTED_IS_DEFAULT)
       {
         channel.setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
@@ -498,7 +490,7 @@ void newPID(const char buf[PACKET_SIZE]) // triggered when new volume process is
       }
       sendCurrentSelectedProcesses();
       buf2[0] = START_NORMAL_BROADCASTS;
-      Serial.write(buf2, PACKET_SIZE);
+      usb_rawhid_send(buf2, TIMEOUT);
       return;
     }
   }
@@ -521,7 +513,7 @@ void pidClosed(const char buf[PACKET_SIZE]) // triggered when volume process is 
   }
   char buf2[PACKET_SIZE];
   buf2[0] = STOP_NORMAL_BROADCASTS;
-  Serial.write(buf2, PACKET_SIZE);
+  usb_rawhid_send(buf2, TIMEOUT);
   if (channelIndex != 0)
   {
     for (uint8_t i = 0; i < openProcessIndex; i++)
@@ -551,23 +543,23 @@ void pidClosed(const char buf[PACKET_SIZE]) // triggered when volume process is 
         buf3[2] = faderChannels[channelIndex].appdata.PID >> 8;
         buf3[3] = faderChannels[channelIndex].appdata.PID >> 16;
         buf3[4] = faderChannels[channelIndex].appdata.PID >> 24;
-        Serial.write(buf3, PACKET_SIZE);
+        usb_rawhid_send(buf3, TIMEOUT);
         break;
       }
     }
   }
   sendCurrentSelectedProcesses();
   buf2[0] = START_NORMAL_BROADCASTS;
-  Serial.write(buf2, PACKET_SIZE);
+  usb_rawhid_send(buf2, TIMEOUT);
   buf2[0] = READY;
-  Serial.write(buf2, PACKET_SIZE);
+  usb_rawhid_send(buf2, TIMEOUT);
 }
 
 void updateProcess(const uint32_t i) // triggered when a fader manually selected a new process
 {
   char buf2[PACKET_SIZE];
   buf2[0] = STOP_NORMAL_BROADCASTS;
-  Serial.write(buf2, PACKET_SIZE);
+  usb_rawhid_send(buf2, TIMEOUT);
   if (const uint8_t a = requestIcon(faderChannels[i].appdata.PID); a == THE_ICON_REQUESTED_IS_DEFAULT)
   {
     faderChannels[i].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
@@ -582,11 +574,11 @@ void updateProcess(const uint32_t i) // triggered when a fader manually selected
   buf[2] = faderChannels[i].appdata.PID >> 8;
   buf[3] = faderChannels[i].appdata.PID >> 16;
   buf[4] = faderChannels[i].appdata.PID >> 24;
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
   faderChannels[i].requestNewProcess = false;
   sendCurrentSelectedProcesses();
   buf2[0] = START_NORMAL_BROADCASTS;
-  Serial.write(buf2, PACKET_SIZE);
+  usb_rawhid_send(buf2, TIMEOUT);
 }
 
 void sendChangeOfMaxVolume(const uint8_t _channelNumber) // sends the current max volume of a channel to the computer
@@ -608,7 +600,7 @@ void sendChangeOfMaxVolume(const uint8_t _channelNumber) // sends the current ma
     buf[5] = faderChannels[_channelNumber].getFaderPosition();
     buf[6] = faderChannels[_channelNumber].isMuted;
   }
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
 }
 
 void changeOfMaxVolume(const char buf[PACKET_SIZE]) // triggered when the max volume of a channel is changed on the computer
@@ -665,7 +657,7 @@ void processRequestsInit(char buf[PACKET_SIZE]) // tells the compuuter we want t
   numPages = buf[2];
   openProcessIndex = 0;
   buf[0] = ACK;
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
 }
 
 void allCurrentProcesses(char buf[PACKET_SIZE]) // triggered when the computer sends all current processes
@@ -712,7 +704,7 @@ void allCurrentProcesses(char buf[PACKET_SIZE]) // triggered when the computer s
 
   // send received
   buf[0] = ACK;
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
 }
 
 void iconPacketsInit(char buf[PACKET_SIZE]) // computer sends info about the icon it is about to send
@@ -730,7 +722,7 @@ void iconPacketsInit(char buf[PACKET_SIZE]) // computer sends info about the ico
   iconPages |= (static_cast<uint32_t>(buf[10]) << 24);
   // send ACK in buf[0] to indicate that we are ready for the first page
   buf[0] = ACK;
-  Serial.write(buf, PACKET_SIZE);
+  usb_rawhid_send(buf, TIMEOUT);
 }
 
 void channelData(const char buf[PACKET_SIZE]) // computer sends info about a process

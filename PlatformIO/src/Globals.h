@@ -17,7 +17,7 @@ static constexpr uint8_t MAX_PROCESSES = 50;
 static constexpr uint8_t ICON_SIZE = 128;
 static constexpr uint8_t CHANNELS = 8;
 static constexpr uint8_t PACKET_SIZE = 64;
-static constexpr size_t TIMEOUT = 5000;
+static constexpr size_t TIMEOUT = 100;
 static constexpr size_t SCREEN_WIDTH = 240;
 static constexpr size_t SCREEN_HEIGHT = 240;
 
