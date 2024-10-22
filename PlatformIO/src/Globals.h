@@ -12,11 +12,13 @@
 
 // Constants
 /***************************************************/
+static constexpr uint8_t API_VERSION = 1;
 static constexpr uint8_t NAME_LENGTH_MAX = 20;
 static constexpr uint8_t MAX_PROCESSES = 50;
 static constexpr uint8_t ICON_SIZE = 128;
 static constexpr uint8_t CHANNELS = 8;
 static constexpr uint8_t MASTER_CHANNEL = 0;
+static constexpr uint32_t MASTER_REQUEST = 1;
 static constexpr uint8_t FIRST_CHANNEL = 1;
 static constexpr uint8_t PACKET_SIZE = 64;
 static constexpr size_t TIMEOUT = 100;
@@ -166,6 +168,7 @@ enum SerialCodes {
     MUTE_MASTER,
     REQUEST_ICON,
     ICON_PACKETS_INIT,
+    ICON_PACKET,
     THE_ICON_REQUESTED_IS_DEFAULT,
     BUTTON_PUSHED
 };

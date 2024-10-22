@@ -11,7 +11,7 @@ public:
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID() const {
         uint32_t value;
         memcpy(&value, data + PID_INDEX, sizeof(uint32_t));
-        return __REV(value);
+        return value;
     }
 
     [[nodiscard]] __attribute__((always_inline)) uint8_t getMaxVolume() const {
@@ -23,7 +23,7 @@ public:
     }
 
 private:
-    static constexpr uint8_t PID_INDEX = NEXT_FREE_INDEX;
+    static constexpr uint8_t PID_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
     static constexpr uint8_t MAX_VOLUME_INDEX = PID_INDEX + sizeof(uint32_t);
     static constexpr uint8_t IS_MUTED_INDEX = MAX_VOLUME_INDEX + sizeof(uint8_t);
 };

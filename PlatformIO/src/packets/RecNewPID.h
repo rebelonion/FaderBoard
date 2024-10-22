@@ -13,7 +13,7 @@ public:
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID() const {
         uint32_t value;
         memcpy(&value, data + PID_INDEX, sizeof(uint32_t));
-        return __REV(value);
+        return value;
     }
 
     void __attribute__((always_inline)) getName(char *name) const {
@@ -29,7 +29,7 @@ public:
     }
 
 private:
-    static constexpr uint8_t PID_INDEX = NEXT_FREE_INDEX;
+    static constexpr uint8_t PID_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
     static constexpr uint8_t NAME_INDEX = PID_INDEX + sizeof(uint32_t);
     static constexpr uint8_t VOL_INDEX = NAME_INDEX + NAME_LENGTH_MAX;
     static constexpr uint8_t MUTE_INDEX = VOL_INDEX + sizeof(uint8_t);

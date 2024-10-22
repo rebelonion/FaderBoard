@@ -11,9 +11,9 @@ public:
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID() const {
         uint32_t value;
         memcpy(&value, data + PID_INDEX, sizeof(uint32_t));
-        return __REV(value);
+        return value;
     }
 
 private:
-    static constexpr uint8_t PID_INDEX = NEXT_FREE_INDEX;
+    static constexpr uint8_t PID_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
 };

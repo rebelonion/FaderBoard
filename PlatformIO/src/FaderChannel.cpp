@@ -29,7 +29,7 @@ void FaderChannel::begin() {
 
 FaderChannel::~FaderChannel() = default;
 
-uint16_t FaderChannel::getFaderPosition() const {
+uint8_t FaderChannel::getFaderPosition() const {
     setToCurrentChannel();
     return (100 - map(analogRead(A6), positionMin + 10, positionMax - 10, 0, 100));
 }
@@ -245,11 +245,13 @@ void FaderChannel::setName(const char _name[20]) {
     }
 }
 
-void FaderChannel::setUnused() {
-    targetVolume = 0;
-    setName("None               ");
-    appdata.PID = UINT32_MAX;
-    isUnUsed = true;
+void FaderChannel::setUnused(const bool _isUnused) {
+    isUnUsed = _isUnused;
+    if (isUnUsed) {
+        targetVolume = 0;
+        setName("None               ");
+        appdata.PID = UINT32_MAX;
+    }
 }
 
 void FaderChannel::setVolumeBarMode(const uint8_t mode) {
@@ -274,4 +276,8 @@ void FaderChannel::setPositionMin() {
 void FaderChannel::setPositionMax() {
     setToCurrentChannel();
     positionMax = analogRead(A6);
+}
+
+bool FaderChannel::isUnused() const {
+    return isUnUsed;
 }

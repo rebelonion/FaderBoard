@@ -14,7 +14,6 @@ public:
     uint8_t targetVolume = 50;
     uint16_t faderPosition{};
     bool isMuted{};
-    bool isUnUsed = false;
     char (*processNames)[50][20]{};
     uint32_t (*processIDs)[50]{};
     uint32_t processIndex = 0;
@@ -25,7 +24,7 @@ public:
     void update();
     void begin();
     void displayMenu();
-    [[nodiscard]] uint16_t getFaderPosition() const;
+    [[nodiscard]] uint8_t getFaderPosition() const;
     void setIcon(const uint16_t _icon[ICON_SIZE][ICON_SIZE], uint16_t _iconWidth, uint16_t _iconHeight);
     void setToCurrentChannel() const;
     void setMaxVolume(uint8_t volume);
@@ -35,12 +34,13 @@ public:
     void onButtonPress(uint8_t buttonNumber);
     void onRotaryPress();
     void onRotaryTurn(bool clockwise);
-    void setUnused();
+    void setUnused(bool _isUnused);
     void setVolumeBarMode(uint8_t mode);
     void setUnTouched();
     void setTouchSensitivity(float _sensitivity);
     void setPositionMin();
     void setPositionMax();
+    [[nodiscard]] bool isUnused() const;
 
 private:
     static constexpr uint32_t ledStates[2][4] = {
@@ -66,6 +66,7 @@ private:
     float touchSensitivity = 1.5f;  //TODO: allow this to be changed in the menu
     bool userTouching = false;
     bool isMaster = false;
+    bool isUnUsed = false;
 
     const uint8_t TOUCH_THRESHOLD = 5;
     const uint8_t POSITION_DEADZONE = 3;

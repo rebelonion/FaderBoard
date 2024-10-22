@@ -16,6 +16,6 @@ public:
   }
 
 private:
-  static constexpr uint8_t NUMBER_OF_CHANNELS_INDEX = NEXT_FREE_INDEX;
+  static constexpr uint8_t NUMBER_OF_CHANNELS_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
   static constexpr uint8_t NUMBER_OF_PACKETS_INDEX = NUMBER_OF_CHANNELS_INDEX + sizeof(uint8_t);
 };

@@ -11,7 +11,7 @@ public:
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID(const uint8_t channelIndex) const {
         uint32_t value;
         memcpy(&value, data + PID_INDEX + channelIndex * ChannelData::SIZE, sizeof(uint32_t));
-        return __REV(value);
+        return value;
     }
 
     [[nodiscard]] __attribute__((always_inline)) uint8_t getVolume(const uint8_t channelIndex) const {
@@ -19,7 +19,7 @@ public:
     }
 
 private:
-    static constexpr uint8_t PID_INDEX = NEXT_FREE_INDEX;
+    static constexpr uint8_t PID_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
     static constexpr uint8_t VOLUME_INDEX = PID_INDEX + sizeof(uint32_t);
     struct ChannelData {
         static constexpr size_t SIZE = sizeof(uint32_t) + sizeof(uint8_t);  // PID + volume

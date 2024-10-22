@@ -10,6 +10,7 @@
 #include "packets/RecMasterMaxChange.h"
 #include "packets/RecMaxChange.h"
 #include "packets/RecPIDClosed.h"
+#include "packets/PacketSender.h"
 #include "FaderChannel.h"
 
 // Functions
@@ -48,7 +49,7 @@ void pidClosed(uint8_t buf[PACKET_SIZE]);
 
 void newPID(const uint8_t buf[PACKET_SIZE]);
 
-void updateProcess(uint32_t i);
+void updateProcess(uint32_t channel);
 
 
 // Transitory Variables for passing data around
@@ -57,6 +58,7 @@ uint32_t currentIconPage = 0;
 uint32_t iconPID = 0;
 int numPackets = 0;
 int numChannels = 0;
+PacketSender packetSender;
 /**************************************************/
 
 // flags
@@ -211,49 +213,37 @@ void init() {
     for (auto &faderChannel: faderChannels) {
         faderChannel.setUnTouched();
     }
-    uint8_t buf[PACKET_SIZE];
     requestAllProcesses();
     // fill the 7 fader channels with the first 7 processes
-    faderChannels[0].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
-    // faderChannel[0].setName(("Master             "));
-    for (uint8_t i = 1; i < CHANNELS; i++) {
-        if (openProcessIndex >= i) {
-            faderChannels[i].appdata.PID = openProcessIDs[i - 1];
-            // set the name
-            faderChannels[i].setName(openProcessNames[i - 1]);
-            // request the icon
-            if (const uint8_t a = requestIcon(faderChannels[i].appdata.PID); a != THE_ICON_REQUESTED_IS_DEFAULT) {
-                faderChannels[i].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
+    faderChannels[MASTER_CHANNEL].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
+    for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
+        if (openProcessIndex >= channel) {
+            faderChannels[channel].appdata.PID = openProcessIDs[channel - 1];
+            faderChannels[channel].setName(openProcessNames[channel - 1]);
+            if (const uint8_t a = requestIcon(faderChannels[channel].appdata.PID); a != THE_ICON_REQUESTED_IS_DEFAULT) {
+                faderChannels[channel].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
             } else {
-                faderChannels[i].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
+                faderChannels[channel].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
             }
         } else {
-            faderChannels[i].appdata.PID = UINT32_MAX;
-            faderChannels[i].setName("None");
-            faderChannels[i].isUnUsed = true;
+            faderChannels[channel].setUnused(true);
         }
     }
     getMaxVolumes();
     for (auto &channel: faderChannels) {
         channel.update();
     }
-    sendCurrentSelectedProcesses();
-    buf[0] = START_NORMAL_BROADCASTS;
-    usb_rawhid_send(buf, TIMEOUT);
+    sendCurrentSelectedProcesses();\
     normalBroadcast = true;
 }
 
 // send the processes of the 7 fader channels to the computer
 void sendCurrentSelectedProcesses() {
-    uint8_t buf[PACKET_SIZE];
-    buf[0] = CURRENT_SELECTED_PROCESSES;
-    for (int i = 0; i < 7; i++) {
-        buf[i * 4 + 1] = faderChannels[i + 1].appdata.PID;
-        buf[i * 4 + 2] = faderChannels[i + 1].appdata.PID >> 8;
-        buf[i * 4 + 3] = faderChannels[i + 1].appdata.PID >> 16;
-        buf[i * 4 + 4] = faderChannels[i + 1].appdata.PID >> 24;
+    uint32_t PIDs[CHANNELS - 1];
+    for (int i = FIRST_CHANNEL; i < CHANNELS; i++) {
+        PIDs[i - 1] = faderChannels[i].appdata.PID;
     }
-    usb_rawhid_send(buf, TIMEOUT);
+    packetSender.sendCurrentSelectedProcesses(PIDs, CHANNELS - 1);
 }
 
 // requests all sound processes from the computer
@@ -286,24 +276,16 @@ void requestAllProcesses() {
 // get the max volumes of the 7 fader channels from the computer
 void getMaxVolumes() {
     uint8_t buf[PACKET_SIZE];
-    int iterator = 1;
-    buf[0] = REQUEST_CHANNEL_DATA;
-    buf[5] = 1; // request master
-    usb_rawhid_send(buf, TIMEOUT);
+    int iterator = FIRST_CHANNEL;
+    packetSender.sendRequestChannelData(MASTER_REQUEST);
     while (true) {
         if (usb_rawhid_available() >= PACKET_SIZE) {
             usb_rawhid_recv(buf, TIMEOUT);
-            update(buf);
-            if (iterator > 7) {
+            update(buf);                      //TODO: I'm not a fan of a blocking while loop to update
+            if (iterator > CHANNELS - 1) {
                 break;
             }
-            buf[0] = REQUEST_CHANNEL_DATA;
-            buf[1] = faderChannels[iterator].appdata.PID;
-            buf[2] = faderChannels[iterator].appdata.PID >> 8;
-            buf[3] = faderChannels[iterator].appdata.PID >> 16;
-            buf[4] = faderChannels[iterator].appdata.PID >> 24;
-            buf[5] = 0; // request channel data
-            usb_rawhid_send(buf, TIMEOUT);
+            packetSender.sendRequestChannelData(faderChannels[iterator].appdata.PID);
             iterator++;
         }
     }
@@ -314,13 +296,8 @@ uint8_t requestIcon(const uint32_t pid) {
     iconPID = 0;
     iconPages = 0;
     currentIconPage = 0;
+    packetSender.sendRequestIcon(pid);
     uint8_t buf[PACKET_SIZE];
-    buf[0] = REQUEST_ICON;
-    buf[1] = pid;
-    buf[2] = pid >> 8;
-    buf[3] = pid >> 16;
-    buf[4] = pid >> 24;
-    usb_rawhid_send(buf, TIMEOUT);
     while (true) {
         if (usb_rawhid_available() >= PACKET_SIZE) {
             usb_rawhid_recv(buf, TIMEOUT);
@@ -418,6 +395,8 @@ uint8_t update(uint8_t *buf) {
         case ICON_PACKETS_INIT:
             iconPacketsInit(buf);
             break;
+        case ICON_PACKET:
+            break;  //TODO:
         case THE_ICON_REQUESTED_IS_DEFAULT:
             return THE_ICON_REQUESTED_IS_DEFAULT;
         case BUTTON_PUSHED:
@@ -438,23 +417,20 @@ void newPID(const uint8_t buf[PACKET_SIZE]) {
     const uint8_t volume = recNewPID.getVolume();
     const bool mute = recNewPID.isMuted();
     for (auto &channel: faderChannels) {
-        if (channel.isUnUsed) {
-            channel.isUnUsed = false;
+        if (channel.isUnused()) {
+            channel.setUnused(false);
             channel.appdata.PID = pid;
             channel.setName(name);
             channel.targetVolume = volume;
             channel.setMute(mute);
-            uint8_t buf2[PACKET_SIZE];
-            buf2[0] = STOP_NORMAL_BROADCASTS;
-            usb_rawhid_send(buf2, TIMEOUT);
+            packetSender.sendStopNormalBroadcasts();
             if (const uint8_t a = requestIcon(pid); a == THE_ICON_REQUESTED_IS_DEFAULT) {
                 channel.setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
             } else {
                 channel.setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
             }
             sendCurrentSelectedProcesses();
-            buf2[0] = START_NORMAL_BROADCASTS;
-            usb_rawhid_send(buf2, TIMEOUT);
+            packetSender.sendStartNormalBroadcasts();
             return;
         }
     }
@@ -464,18 +440,17 @@ void newPID(const uint8_t buf[PACKET_SIZE]) {
 void pidClosed(uint8_t buf[PACKET_SIZE]) {
     const RecPIDClosed recPIDClosed(buf);
     const uint32_t closedPID = recPIDClosed.getPID();
-    uint8_t channelIndex = 0;
+    uint8_t channelIndex = FIRST_CHANNEL - 1;
     for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
         if (faderChannels[channel].appdata.PID == closedPID) {
-            faderChannels[channel].setUnused();
+            faderChannels[channel].setUnused(true);
             channelIndex = channel;
             break;
         }
     }
 
-    buf[0] = STOP_NORMAL_BROADCASTS;
-    usb_rawhid_send(buf, TIMEOUT);
-    if (channelIndex != 0) {
+    packetSender.sendStopNormalBroadcasts();
+    if (channelIndex != FIRST_CHANNEL - 1) {
         for (uint8_t i = 0; i < openProcessIndex; i++) {
             const uint32_t candidatePID = openProcessIDs[i];
             bool inUse = false;
@@ -489,78 +464,58 @@ void pidClosed(uint8_t buf[PACKET_SIZE]) {
                 faderChannels[channelIndex].appdata.PID = candidatePID;
                 const uint8_t iconResult = requestIcon(candidatePID);
                 faderChannels[channelIndex].setIcon(
-                    (iconResult == THE_ICON_REQUESTED_IS_DEFAULT) ? defaultIcon : bufferIcon,
+                    iconResult == THE_ICON_REQUESTED_IS_DEFAULT ? defaultIcon : bufferIcon,
                     ICON_SIZE,
                     ICON_SIZE
                 );
-                buf[0] = REQUEST_CHANNEL_DATA;
-                for (uint8_t byte = 0; byte < static_cast<uint8_t>(sizeof(uint32_t)); byte++) {
-                    buf[byte + 1] = static_cast<uint8_t>(candidatePID >> byte * 8);
-                }
-                usb_rawhid_send(buf, TIMEOUT);
+                packetSender.sendRequestChannelData(candidatePID);
                 break;
             }
         }
     }
     sendCurrentSelectedProcesses();
-    buf[0] = START_NORMAL_BROADCASTS;
-    usb_rawhid_send(buf, TIMEOUT);
-    buf[0] = READY;
-    usb_rawhid_send(buf, TIMEOUT);
+    packetSender.sendStartNormalBroadcasts();
+    packetSender.sendReady();
 }
 
-//TODO: clean up
 // triggered when a fader manually selected a new process
-void updateProcess(const uint32_t i) {
-    uint8_t buf2[PACKET_SIZE];
-    buf2[0] = STOP_NORMAL_BROADCASTS;
-    usb_rawhid_send(buf2, TIMEOUT);
-    if (const uint8_t a = requestIcon(faderChannels[i].appdata.PID); a == THE_ICON_REQUESTED_IS_DEFAULT) {
-        faderChannels[i].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
+void updateProcess(const uint32_t channel) {
+    packetSender.sendStopNormalBroadcasts();
+    if (const uint8_t res = requestIcon(faderChannels[channel].appdata.PID); res == THE_ICON_REQUESTED_IS_DEFAULT) {
+        faderChannels[channel].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
     } else {
-        faderChannels[i].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
+        faderChannels[channel].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
     }
-    uint8_t buf[PACKET_SIZE];
-    buf[0] = REQUEST_CHANNEL_DATA;
-    buf[1] = faderChannels[i].appdata.PID;
-    buf[2] = faderChannels[i].appdata.PID >> 8;
-    buf[3] = faderChannels[i].appdata.PID >> 16;
-    buf[4] = faderChannels[i].appdata.PID >> 24;
-    usb_rawhid_send(buf, TIMEOUT);
-    faderChannels[i].requestNewProcess = false;
+    packetSender.sendRequestChannelData(faderChannels[channel].appdata.PID);
+    faderChannels[channel].requestNewProcess = false;
     sendCurrentSelectedProcesses();
-    buf2[0] = START_NORMAL_BROADCASTS;
-    usb_rawhid_send(buf2, TIMEOUT);
+    packetSender.sendStartNormalBroadcasts();
 }
 
-//TODO: clean up
 // sends the current max volume of a channel to the computer
 void sendChangeOfMaxVolume(const uint8_t _channelNumber) {
-    uint8_t buf[PACKET_SIZE];
-    if (_channelNumber == 0) {
-        buf[0] = CHANGE_OF_MASTER_MAX;
-        buf[1] = faderChannels[0].getFaderPosition();
-        buf[2] = faderChannels[0].isMuted;
+    if (_channelNumber == MASTER_CHANNEL) {
+        packetSender.sendChangeOfMasterChannel(
+            faderChannels[MASTER_CHANNEL].getFaderPosition(),
+            faderChannels[MASTER_CHANNEL].isMuted
+        );
     } else {
-        buf[0] = CHANGE_OF_MAX_VOLUME;
-        buf[1] = faderChannels[_channelNumber].appdata.PID;
-        buf[2] = faderChannels[_channelNumber].appdata.PID >> 8;
-        buf[3] = faderChannels[_channelNumber].appdata.PID >> 16;
-        buf[4] = faderChannels[_channelNumber].appdata.PID >> 24;
-        buf[5] = faderChannels[_channelNumber].getFaderPosition();
-        buf[6] = faderChannels[_channelNumber].isMuted;
+        packetSender.sendChangeOfChannel(
+            faderChannels[_channelNumber].appdata.PID,
+            faderChannels[_channelNumber].getFaderPosition(),
+            faderChannels[_channelNumber].isMuted
+        );
     }
-    usb_rawhid_send(buf, TIMEOUT);
 }
 
 // triggered when the max volume of a channel is changed on the computer
 void changeOfMaxVolume(const uint8_t buf[PACKET_SIZE]) {
     const RecMaxChange recMaxChange(buf);
     const uint32_t pid = recMaxChange.getPID();
-    for (int i = FIRST_CHANNEL; i < CHANNELS; i++) {
-        if (faderChannels[i].appdata.PID == pid) {
-            faderChannels[i].setMaxVolume(recMaxChange.getMaxVolume());
-            faderChannels[i].setMute(recMaxChange.isMuted());
+    for (int channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
+        if (faderChannels[channel].appdata.PID == pid) {
+            faderChannels[channel].setMaxVolume(recMaxChange.getMaxVolume());
+            faderChannels[channel].setMute(recMaxChange.isMuted());
             break;
         }
     }

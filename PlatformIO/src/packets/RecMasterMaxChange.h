@@ -17,6 +17,6 @@ public:
     }
 
 private:
-    static constexpr uint8_t MASTER_MAX_VOLUME_INDEX = NEXT_FREE_INDEX;
+    static constexpr uint8_t MASTER_MAX_VOLUME_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
     static constexpr uint8_t MATER_MAX_MUTE_INDEX = MASTER_MAX_VOLUME_INDEX + sizeof(uint8_t);
 };

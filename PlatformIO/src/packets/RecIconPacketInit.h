@@ -11,17 +11,17 @@ public:
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID() const {
         uint32_t value;
         memcpy(&value, data + ICON_PID_INDEX, sizeof(uint32_t));
-        return __REV(value);
+        return value;
     }
 
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPacketCount() const {
         uint32_t value;
         memcpy(&value, data + ICON_PACKET_COUNT_INDEX, sizeof(uint32_t));
-        return __REV(value);
+        return value;
     }
 
 
 private:
-    static constexpr uint8_t ICON_PID_INDEX = NEXT_FREE_INDEX;
+    static constexpr uint8_t ICON_PID_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
     static constexpr uint8_t ICON_PACKET_COUNT_INDEX = ICON_PID_INDEX + sizeof(uint32_t);
 };
