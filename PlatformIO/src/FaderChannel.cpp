@@ -24,7 +24,7 @@ FaderChannel::FaderChannel(const uint8_t _channelNumber, WS2812Serial *_leds, Re
 
 void FaderChannel::begin() {
     setMute(false);
-    setSolo(false);
+    setSelected(false);
 }
 
 FaderChannel::~FaderChannel() = default;
@@ -45,13 +45,13 @@ void FaderChannel::update() {
         if (static_cast<float>(touch->capacitiveSensor(25)) > static_cast<float>(baselineTouch) * touchSensitivity &&
             faderPosition > TOUCH_THRESHOLD) {
             motor->stop();
-            setSolo(true);
+            setSelected(true);
             if (millis() - lastTouchChange > TOUCH_DEBOUNCE_TIME) {
                 userChanged = true;
                 lastTouchChange = millis();
             }
         } else {
-            setSolo(false);
+            setSelected(false);
             if (faderPosition > targetVolume + POSITION_DEADZONE) {
                 motor->forward(abs(faderPosition - targetVolume) < SPEED_THRESHOLD ? SLOW_SPEED : FAST_SPEED);
             } else if (faderPosition < targetVolume - POSITION_DEADZONE) {
@@ -122,7 +122,7 @@ void FaderChannel::onButtonPress(const uint8_t buttonNumber) {
             setMute(!isMuted);
             userChanged = true;
         } else if (buttonNumber == 0) {
-            setSolo(!isSoloed);
+            //TODO: macros?
         }
     }
 }
@@ -228,10 +228,9 @@ void FaderChannel::setMute(const bool mute) {
     }
 }
 
-void FaderChannel::setSolo(const bool solo) {
-    isSoloed = solo;
-    if (isSoloed) {
-        leds->setPixel(64 + 2 * channelNumber + 1, SOLO);
+void FaderChannel::setSelected(const bool selected) const {
+    if (selected) {
+        leds->setPixel(64 + 2 * channelNumber + 1, SELECTED);
     } else {
         leds->setPixel(64 + 2 * channelNumber + 1, ZERO);
     }

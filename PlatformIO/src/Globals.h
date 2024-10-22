@@ -16,6 +16,8 @@ static constexpr uint8_t NAME_LENGTH_MAX = 20;
 static constexpr uint8_t MAX_PROCESSES = 50;
 static constexpr uint8_t ICON_SIZE = 128;
 static constexpr uint8_t CHANNELS = 8;
+static constexpr uint8_t MASTER_CHANNEL = 0;
+static constexpr uint8_t FIRST_CHANNEL = 1;
 static constexpr uint8_t PACKET_SIZE = 64;
 static constexpr size_t TIMEOUT = 100;
 static constexpr size_t SCREEN_WIDTH = 240;
@@ -29,7 +31,7 @@ static constexpr size_t SCREEN_HEIGHT = 240;
 #define JUSTTHREE 0x001100
 #define MUTE 0x005500
 #define UNMUTE 0x550000
-#define SOLO 0x000055
+#define SELECTED 0x000055
 
 
 // Data Structures
@@ -162,8 +164,6 @@ enum SerialCodes {
     MUTE_PROCESS,
     CHANGE_OF_MASTER_MAX,
     MUTE_MASTER,
-    MUTE_ALL_EXCEPT,
-    UNMUTE_ALL,
     REQUEST_ICON,
     ICON_PACKETS_INIT,
     THE_ICON_REQUESTED_IS_DEFAULT,
