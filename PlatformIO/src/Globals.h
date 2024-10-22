@@ -142,7 +142,6 @@ inline uint8_t openProcessIndex = 0; // index after final element in openProcess
 
 enum SerialCodes {
     UNDEFINED,
-    PING,
     ACK,
     NACK,
     REQUEST_ALL_PROCESSES,

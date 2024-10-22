@@ -10,28 +10,25 @@
 /**************************************************/
 void init();
 [[noreturn]] void uncaughtException();
-void iconPacketsInit(char buf[64]);
-void allCurrentProcesses(char buf[64]);
-void processRequestsInit(char buf[64]);
-void ping();
+void iconPacketsInit(char buf[PACKET_SIZE]);
+void allCurrentProcesses(char buf[PACKET_SIZE]);
+void processRequestsInit(char buf[PACKET_SIZE]);
 uint8_t update(char *buf);
 uint8_t requestIcon(uint32_t pid);
 void requestAllProcesses();
-void receiveCurrentVolumeLevels(const char buf[64]);
+void receiveCurrentVolumeLevels(const char buf[PACKET_SIZE]);
 void sendCurrentSelectedProcesses();
-void channelData(const char buf[64]);
+void channelData(const char buf[PACKET_SIZE]);
 void getMaxVolumes();
-void changeOfMaxVolume(const char buf[64]);
-void changeOfMasterMax(const char buf[64]);
+void changeOfMaxVolume(const char buf[PACKET_SIZE]);
+void changeOfMasterMax(const char buf[PACKET_SIZE]);
 void sendChangeOfMaxVolume(uint8_t _channelNumber);
-void pidClosed(const char buf[64]);
-void newPID(const char buf[64]);
+void pidClosed(const char buf[PACKET_SIZE]);
+void newPID(const char buf[PACKET_SIZE]);
 void updateProcess(uint32_t i);
 
 
 // Transitory Variables for passing data around
-int iconWidth = 0;
-int iconHeight = 0;
 uint32_t iconPages = 0;
 uint32_t currentIconPage = 0;
 uint32_t iconPID = 0;
@@ -78,7 +75,7 @@ void setup()
   for (int i = 0; i < 16; i++)
   {
     rotaryMux.pinMode(i, INPUT_PULLUP);
-    if (i < 8)
+    if (i < CHANNELS)
     {
       reButtonMux.pinMode(i, INPUT_PULLUP);
     }
@@ -91,7 +88,7 @@ void setup()
   reButtonMux.update();
   leButtonMux.update();
   rotaryMux.update();
-  for (int i = 0; i < 8; i++) // set up the encoders and buttons
+  for (int i = 0; i < CHANNELS; i++) // set up the encoders and buttons
   {
     encoder[i].begin();
     enButton[i].begin();
@@ -102,12 +99,12 @@ void setup()
 
   // clear up any data that may be in the buffer (flush didn't work for some reason)
   while (Serial.available()) {
-    char buf[64];
-    Serial.readBytes(buf, 64);
+    char buf[PACKET_SIZE];
+    Serial.readBytes(buf, PACKET_SIZE);
   }
   digitalWrite(CS_LOCK, HIGH); // unlock the screens
   LEDs.clear();
-  LEDs.show();                                 // initialize the LEDs
+  LEDs.show();
   capSensor.set_CS_AutocaL_Millis(0xFFFFFFFF); // set up the capacitive sensor
   capSensor.set_CS_Timeout_Millis(100);
   capSensor.reset_CS_AutoCal();
@@ -120,7 +117,7 @@ void loop()
   reButtonMux.update(); // update the encoders and buttons
   leButtonMux.update();
   rotaryMux.update();
-  for (int i = 0; i < 8; i++) // update the fade channels
+  for (int i = 0; i < CHANNELS; i++) // update the fade channels
   {
     encoder[i].update(rotaryMux.digitalRead(i * 2), rotaryMux.digitalRead(i * 2 + 1), 2, LOW);
     enButton[i].update(reButtonMux.digitalRead(i), 50, LOW);
@@ -134,9 +131,9 @@ void loop()
 
     if (faderChannels[i].requestProcessRefresh)
     {
-      char sendBuf[64];
+      char sendBuf[PACKET_SIZE];
       sendBuf[0] = REQUEST_ALL_PROCESSES;
-      Serial.write(sendBuf, 64);
+      Serial.write(sendBuf, PACKET_SIZE);
       faderRequest = i;
       faderChannels[i].requestProcessRefresh = false;
     }
@@ -165,10 +162,10 @@ void loop()
 
     faderChannels[i].update();
   }
-  if (Serial.available() >= 64) // check for serial data
+  if (Serial.available() >= PACKET_SIZE) // check for serial data
   {
-    char buf[64];
-    Serial.readBytes(buf, 64);
+    char buf[PACKET_SIZE];
+    Serial.readBytes(buf, PACKET_SIZE);
     update(buf);
     LEDs.show();
   }
@@ -208,12 +205,12 @@ void init() // set fader pot and touch values then get initial data from compute
   {
     faderChannel.setUnTouched();
   }
-  char buf[64];
+  char buf[PACKET_SIZE];
   requestAllProcesses();
   // fill the 7 fader channels with the first 7 processes
-  faderChannels[0].setIcon(defaultIcon, 128, 128);
+  faderChannels[0].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
   // faderChannel[0].setName(("Master             "));
-  for (int i = 1; i < 8; i++)
+  for (uint8_t i = 1; i < CHANNELS; i++)
   {
     if (openProcessIndex >= i)
     {
@@ -223,22 +220,17 @@ void init() // set fader pot and touch values then get initial data from compute
       // request the icon
       if (const uint8_t a = requestIcon(faderChannels[i].appdata.PID); a != THE_ICON_REQUESTED_IS_DEFAULT)
       {
-        faderChannels[i].setIcon(bufferIcon, iconWidth, iconHeight);
+        faderChannels[i].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
       }
       else
       {
-        faderChannels[i].setIcon(defaultIcon, 128, 128);
+        faderChannels[i].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
       }
     }
     else
     {
-      // set to uint32 max
-      faderChannels[i].appdata.PID = 4294967295;
-      // set the name
-      faderChannels[i].appdata.name[0] = 'N';
-      faderChannels[i].appdata.name[1] = 'o';
-      faderChannels[i].appdata.name[2] = 'n';
-      faderChannels[i].appdata.name[3] = 'e';
+      faderChannels[i].appdata.PID = UINT32_MAX;
+      faderChannels[i].setName("None");
       faderChannels[i].isUnUsed = true;
     }
   }
@@ -249,13 +241,13 @@ void init() // set fader pot and touch values then get initial data from compute
   }
   sendCurrentSelectedProcesses();
   buf[0] = START_NORMAL_BROADCASTS;
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
   normalBroadcast = true;
 }
 
 void sendCurrentSelectedProcesses() // send the processes of the 7 fader channels to the computer
 {
-  char buf[64];
+  char buf[PACKET_SIZE];
   buf[0] = CURRENT_SELECTED_PROCESSES;
   for (int i = 0; i < 7; i++)
   {
@@ -264,18 +256,18 @@ void sendCurrentSelectedProcesses() // send the processes of the 7 fader channel
     buf[i * 4 + 3] = faderChannels[i + 1].appdata.PID >> 16;
     buf[i * 4 + 4] = faderChannels[i + 1].appdata.PID >> 24;
   }
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
 }
 
 void requestAllProcesses() // requests all sound processes from the computer
 {
   uint32_t millisStart = millis() - 100;
-  char buf[64];
+  char buf[PACKET_SIZE];
   int a = 0;
   bool started = false;
   while (Serial.available())
   {
-    Serial.readBytes(buf, 64);
+    Serial.readBytes(buf, PACKET_SIZE);
   }
 
   while (true)
@@ -285,13 +277,13 @@ void requestAllProcesses() // requests all sound processes from the computer
     {
       millisStart = millis();
       buf[0] = REQUEST_ALL_PROCESSES;
-      Serial.write(buf, 64);
+      Serial.write(buf, PACKET_SIZE);
     }
 
-    if (Serial.available() >= 64)
+    if (Serial.available() >= PACKET_SIZE)
     {
       started = true;
-      Serial.readBytes(buf, 64);
+      Serial.readBytes(buf, PACKET_SIZE);
       a = update(buf);
       if (a == 1)
       {
@@ -303,16 +295,16 @@ void requestAllProcesses() // requests all sound processes from the computer
 
 void getMaxVolumes() // get the max volumes of the 7 fader channels from the computer
 {
-  char buf[64];
+  char buf[PACKET_SIZE];
   int iterator = 1;
   buf[0] = REQUEST_CHANNEL_DATA;
   buf[5] = 1; // request master
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
   while (true)
   {
-    if (Serial.available() >= 64)
+    if (Serial.available() >= PACKET_SIZE)
     {
-      Serial.readBytes(buf, 64);
+      Serial.readBytes(buf, PACKET_SIZE);
       update(buf);
       if (iterator > 7)
       {
@@ -324,7 +316,7 @@ void getMaxVolumes() // get the max volumes of the 7 fader channels from the com
       buf[3] = faderChannels[iterator].appdata.PID >> 16;
       buf[4] = faderChannels[iterator].appdata.PID >> 24;
       buf[5] = 0; // request channel data
-      Serial.write(buf, 64);
+      Serial.write(buf, PACKET_SIZE);
       iterator++;
     }
   }
@@ -332,28 +324,25 @@ void getMaxVolumes() // get the max volumes of the 7 fader channels from the com
 
 uint8_t requestIcon(const uint32_t pid) // request the icon of a process from the computer UNSAFE, the computer cannot send any other data while this is happening
 {
-
-  iconWidth = 0;
-  iconHeight = 0;
   iconPID = 0;
   iconPages = 0;
   currentIconPage = 0;
-  char buf[64];
+  char buf[PACKET_SIZE];
   buf[0] = REQUEST_ICON;
   buf[1] = pid;
   buf[2] = pid >> 8;
   buf[3] = pid >> 16;
   buf[4] = pid >> 24;
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
   while (true)
   {
-    if (Serial.available() >= 64)
+    if (Serial.available() >= PACKET_SIZE)
     {
-      Serial.readBytes(buf, 64);
+      Serial.readBytes(buf, PACKET_SIZE);
 
       if (receivingIcon)
       { // each pixel is 2 bytes and we are expecting a 128x128 icon
-        // icons are sent left to right, top to bottom in 64 byte chunks
+        // icons are sent left to right, top to bottom in PACKET_SIZE byte chunks
         for (uint8_t i = 0; i < 32; i++)
         {
           uint16_t color = buf[i * 2];
@@ -364,7 +353,7 @@ uint8_t requestIcon(const uint32_t pid) // request the icon of a process from th
         currentIconPage++;
         // send 2 in buf[0] to indicate that we are ready for the next page
         buf[0] = ACK;
-        Serial.write(buf, 64);
+        Serial.write(buf, PACKET_SIZE);
         if (currentIconPage == iconPages)
         {
           // we have received all the pages of the icon
@@ -391,8 +380,6 @@ uint8_t update(char *buf) // main update function, some functions use the return
   {
   // case UNDEFINED:
   // break;
-  case PING:
-    return PING;
   case ACK | NACK:
     break;
   // case REQUEST_ALL_PROCESSES:
@@ -474,7 +461,7 @@ uint8_t update(char *buf) // main update function, some functions use the return
   return 0;
 }
 
-void newPID(const char buf[64]) // triggered when new volume process is opened up on the computer
+void newPID(const char buf[PACKET_SIZE]) // triggered when new volume process is opened up on the computer
 {
   uint32_t pid = buf[1];
   pid |= (static_cast<uint32_t>(buf[2]) << 8);
@@ -498,33 +485,33 @@ void newPID(const char buf[64]) // triggered when new volume process is opened u
       channel.setName(name);
       channel.targetVolume = volume;
       channel.setMute(mute);
-      char buf2[64];
+      char buf2[PACKET_SIZE];
       buf2[0] = STOP_NORMAL_BROADCASTS;
-      Serial.write(buf2, 64);
+      Serial.write(buf2, PACKET_SIZE);
       if (const uint8_t a = requestIcon(pid); a == THE_ICON_REQUESTED_IS_DEFAULT)
       {
-        channel.setIcon(defaultIcon, 128, 128);
+        channel.setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
       }
       else
       {
-        channel.setIcon(bufferIcon, 128, 128);
+        channel.setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
       }
       sendCurrentSelectedProcesses();
       buf2[0] = START_NORMAL_BROADCASTS;
-      Serial.write(buf2, 64);
+      Serial.write(buf2, PACKET_SIZE);
       return;
     }
   }
 }
 
-void pidClosed(const char buf[64]) // triggered when volume process is closed on the computer
+void pidClosed(const char buf[PACKET_SIZE]) // triggered when volume process is closed on the computer
 {
   uint8_t channelIndex = 0;
   uint32_t pid = buf[1];
-  pid |= (static_cast<uint32_t>(buf[2]) << 8);
-  pid |= (static_cast<uint32_t>(buf[3]) << 16);
-  pid |= (static_cast<uint32_t>(buf[4]) << 24);
-  for (uint8_t i = 0; i < 8; i++)
+  pid |= static_cast<uint32_t>(buf[2]) << 8;
+  pid |= static_cast<uint32_t>(buf[3]) << 16;
+  pid |= static_cast<uint32_t>(buf[4]) << 24;
+  for (uint8_t i = 0; i < CHANNELS; i++)
   {
     if (faderChannels[i].appdata.PID == pid)
     {
@@ -532,10 +519,9 @@ void pidClosed(const char buf[64]) // triggered when volume process is closed on
       channelIndex = i;
     }
   }
-  char buf2[64];
+  char buf2[PACKET_SIZE];
   buf2[0] = STOP_NORMAL_BROADCASTS;
-  Serial.write(buf2, 64);
-  requestAllProcesses();
+  Serial.write(buf2, PACKET_SIZE);
   if (channelIndex != 0)
   {
     for (uint8_t i = 0; i < openProcessIndex; i++)
@@ -553,59 +539,59 @@ void pidClosed(const char buf[64]) // triggered when volume process is closed on
         faderChannels[channelIndex].appdata.PID = openProcessIDs[i];
         if (const uint8_t a = requestIcon(openProcessIDs[i]); a == THE_ICON_REQUESTED_IS_DEFAULT)
         {
-          faderChannels[channelIndex].setIcon(defaultIcon, 128, 128);
+          faderChannels[channelIndex].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
         }
         else
         {
-          faderChannels[channelIndex].setIcon(bufferIcon, 128, 128);
+          faderChannels[channelIndex].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
         }
-        char buf3[64];  //TODO: optimize buf creation
+        char buf3[PACKET_SIZE];  //TODO: optimize buf creation
         buf3[0] = REQUEST_CHANNEL_DATA;
         buf3[1] = faderChannels[channelIndex].appdata.PID;
         buf3[2] = faderChannels[channelIndex].appdata.PID >> 8;
         buf3[3] = faderChannels[channelIndex].appdata.PID >> 16;
         buf3[4] = faderChannels[channelIndex].appdata.PID >> 24;
-        Serial.write(buf3, 64);
+        Serial.write(buf3, PACKET_SIZE);
         break;
       }
     }
   }
   sendCurrentSelectedProcesses();
   buf2[0] = START_NORMAL_BROADCASTS;
-  Serial.write(buf2, 64);
+  Serial.write(buf2, PACKET_SIZE);
   buf2[0] = READY;
-  Serial.write(buf2, 64);
+  Serial.write(buf2, PACKET_SIZE);
 }
 
 void updateProcess(const uint32_t i) // triggered when a fader manually selected a new process
 {
-  char buf2[64];
+  char buf2[PACKET_SIZE];
   buf2[0] = STOP_NORMAL_BROADCASTS;
-  Serial.write(buf2, 64);
+  Serial.write(buf2, PACKET_SIZE);
   if (const uint8_t a = requestIcon(faderChannels[i].appdata.PID); a == THE_ICON_REQUESTED_IS_DEFAULT)
   {
-    faderChannels[i].setIcon(defaultIcon, 128, 128);
+    faderChannels[i].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
   }
   else
   {
-    faderChannels[i].setIcon(bufferIcon, 128, 128);
+    faderChannels[i].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
   }
-  char buf[64];
+  char buf[PACKET_SIZE];
   buf[0] = REQUEST_CHANNEL_DATA;
   buf[1] = faderChannels[i].appdata.PID;
   buf[2] = faderChannels[i].appdata.PID >> 8;
   buf[3] = faderChannels[i].appdata.PID >> 16;
   buf[4] = faderChannels[i].appdata.PID >> 24;
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
   faderChannels[i].requestNewProcess = false;
   sendCurrentSelectedProcesses();
   buf2[0] = START_NORMAL_BROADCASTS;
-  Serial.write(buf2, 64);
+  Serial.write(buf2, PACKET_SIZE);
 }
 
 void sendChangeOfMaxVolume(const uint8_t _channelNumber) // sends the current max volume of a channel to the computer
 {
-  char buf[64];
+  char buf[PACKET_SIZE];
   if (_channelNumber == 0)
   {
     buf[0] = CHANGE_OF_MASTER_MAX;
@@ -622,18 +608,18 @@ void sendChangeOfMaxVolume(const uint8_t _channelNumber) // sends the current ma
     buf[5] = faderChannels[_channelNumber].getFaderPosition();
     buf[6] = faderChannels[_channelNumber].isMuted;
   }
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
 }
 
-void changeOfMaxVolume(const char buf[64]) // triggered when the max volume of a channel is changed on the computer
+void changeOfMaxVolume(const char buf[PACKET_SIZE]) // triggered when the max volume of a channel is changed on the computer
 {
   uint32_t pid = buf[1];
-  pid |= (static_cast<uint32_t>(buf[2]) << 8);
-  pid |= (static_cast<uint32_t>(buf[3]) << 16);
-  pid |= (static_cast<uint32_t>(buf[4]) << 24);
+  pid |= static_cast<uint32_t>(buf[2]) << 8;
+  pid |= static_cast<uint32_t>(buf[3]) << 16;
+  pid |= static_cast<uint32_t>(buf[4]) << 24;
   const uint8_t maxVolume = buf[5];
   const bool mute = buf[6];
-  for (int i = 1; i < 8; i++)
+  for (int i = 1; i < CHANNELS; i++)
   {
     if (faderChannels[i].appdata.PID == pid)
     {
@@ -644,7 +630,7 @@ void changeOfMaxVolume(const char buf[64]) // triggered when the max volume of a
   }
 }
 
-void changeOfMasterMax(const char buf[64]) // triggered when the max volume of the master channel is changed on the computer
+void changeOfMasterMax(const char buf[PACKET_SIZE]) // triggered when the max volume of the master channel is changed on the computer
 {
   const uint8_t maxVolume = buf[1];
   const bool mute = buf[2];
@@ -652,7 +638,7 @@ void changeOfMasterMax(const char buf[64]) // triggered when the max volume of t
   faderChannels[0].setMute(mute);
 }
 
-void receiveCurrentVolumeLevels(const char buf[64]) // computer sends volume levels of all channels
+void receiveCurrentVolumeLevels(const char buf[PACKET_SIZE]) // computer sends volume levels of all channels
 {
   uint32_t pid = 0; // byte 1 through 4 is the pid, byte 5 is the volume level, then repeat
   int volumeLevel = 0;
@@ -663,7 +649,7 @@ void receiveCurrentVolumeLevels(const char buf[64]) // computer sends volume lev
     pid |= (static_cast<uint32_t>(buf[i * 5 + 3]) << 16);
     pid |= (static_cast<uint32_t>(buf[i * 5 + 4]) << 24);
     volumeLevel = buf[i * 5 + 5];
-    for (int j = 1; j < 8; j++)
+    for (int j = 1; j < CHANNELS; j++)
     {
       if (faderChannels[j].appdata.PID == pid)
       {
@@ -673,20 +659,16 @@ void receiveCurrentVolumeLevels(const char buf[64]) // computer sends volume lev
   }
 }
 
-void ping() // not implemented yet (not sure if it will be)
-{
-}
-
-void processRequestsInit(char buf[64]) // tells the compuuter we want to receive all current processes
+void processRequestsInit(char buf[PACKET_SIZE]) // tells the compuuter we want to receive all current processes
 {
   numChannels = buf[1];
   numPages = buf[2];
   openProcessIndex = 0;
   buf[0] = ACK;
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
 }
 
-void allCurrentProcesses(char buf[64]) // triggered when the computer sends all current processes
+void allCurrentProcesses(char buf[PACKET_SIZE]) // triggered when the computer sends all current processes
 {
   uint32_t pid = 0;
   pid |= buf[1];
@@ -730,28 +712,28 @@ void allCurrentProcesses(char buf[64]) // triggered when the computer sends all 
 
   // send received
   buf[0] = ACK;
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
 }
 
-void iconPacketsInit(char buf[64]) // computer sends info about the icon it is about to send
+void iconPacketsInit(char buf[PACKET_SIZE]) // computer sends info about the icon it is about to send
 {
   receivingIcon = true;
   iconPID |= buf[1];
   iconPID |= (static_cast<uint32_t>(buf[2]) << 8);
   iconPID |= (static_cast<uint32_t>(buf[3]) << 16);
   iconPID |= (static_cast<uint32_t>(buf[4]) << 24);
-  iconWidth = buf[5];
-  iconHeight = buf[6];
+  //iconWidth = buf[5];  deprecated, all icons will be sent as 128x128
+  //iconHeight = buf[6];
   iconPages |= buf[7];
   iconPages |= (static_cast<uint32_t>(buf[8]) << 8);
   iconPages |= (static_cast<uint32_t>(buf[9]) << 16);
   iconPages |= (static_cast<uint32_t>(buf[10]) << 24);
-  // send 2 in buf[0] to indicate that we are ready for the first page
+  // send ACK in buf[0] to indicate that we are ready for the first page
   buf[0] = ACK;
-  Serial.write(buf, 64);
+  Serial.write(buf, PACKET_SIZE);
 }
 
-void channelData(const char buf[64]) // computer sends info about a process
+void channelData(const char buf[PACKET_SIZE]) // computer sends info about a process
 {
   const uint8_t isMaster = buf[1];
   const uint8_t maxVolume = buf[2];
@@ -775,7 +757,7 @@ void channelData(const char buf[64]) // computer sends info about a process
   else
   {
     // find the matching channel from the pid
-    for (int i = 1; i < 8; i++)
+    for (int i = 1; i < CHANNELS; i++)
     {
       if (faderChannels[i].appdata.PID == pid)
       {
