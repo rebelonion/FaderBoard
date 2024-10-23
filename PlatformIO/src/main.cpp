@@ -19,9 +19,9 @@ void init();
 
 [[noreturn]] void uncaughtException(const String &message = "");
 
-void iconPacketsInit(uint8_t buf[PACKET_SIZE]);
+void iconPacketsInit(const uint8_t buf[PACKET_SIZE]);
 
-void allCurrentProcesses(uint8_t buf[PACKET_SIZE]);
+void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]);
 
 void processRequestsInit(uint8_t buf[PACKET_SIZE]);
 
@@ -57,7 +57,7 @@ uint32_t iconPages = 0;
 uint32_t currentIconPage = 0;
 uint32_t iconPID = 0;
 int numPackets = 0;
-int numChannels = 0;
+size_t numChannels = 0;
 PacketSender packetSender;
 /**************************************************/
 
@@ -217,7 +217,7 @@ void init() {
     // fill the 7 fader channels with the first 7 processes
     faderChannels[MASTER_CHANNEL].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
     for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
-        if (openProcessIndex >= channel) {
+        if (openProcessIDs.getSize() >= channel) {
             faderChannels[channel].appdata.PID = openProcessIDs[channel - 1];
             faderChannels[channel].setName(openProcessNames[channel - 1]);
             if (const uint8_t a = requestIcon(faderChannels[channel].appdata.PID); a != THE_ICON_REQUESTED_IS_DEFAULT) {
@@ -275,13 +275,13 @@ void requestAllProcesses() {
 
 // get the max volumes of the 7 fader channels from the computer
 void getMaxVolumes() {
-    uint8_t buf[PACKET_SIZE];
     int iterator = FIRST_CHANNEL;
     packetSender.sendRequestChannelData(MASTER_REQUEST);
     while (true) {
         if (usb_rawhid_available() >= PACKET_SIZE) {
+            uint8_t buf[PACKET_SIZE];
             usb_rawhid_recv(buf, TIMEOUT);
-            update(buf);                      //TODO: I'm not a fan of a blocking while loop to update
+            update(buf); //TODO: I'm not a fan of a blocking while loop to update
             if (iterator > CHANNELS - 1) {
                 break;
             }
@@ -313,8 +313,7 @@ uint8_t requestIcon(const uint32_t pid) {
                 }
                 currentIconPage++;
                 // send 2 in buf[0] to indicate that we are ready for the next page
-                buf[0] = ACK;
-                usb_rawhid_send(buf, TIMEOUT);
+                packetSender.sendAcknowledge();
                 if (currentIconPage == iconPages) {
                     // we have received all the pages of the icon
                     receivingIcon = false;
@@ -396,7 +395,7 @@ uint8_t update(uint8_t *buf) {
             iconPacketsInit(buf);
             break;
         case ICON_PACKET:
-            break;  //TODO:
+            break; //TODO:
         case THE_ICON_REQUESTED_IS_DEFAULT:
             return THE_ICON_REQUESTED_IS_DEFAULT;
         case BUTTON_PUSHED:
@@ -451,7 +450,7 @@ void pidClosed(uint8_t buf[PACKET_SIZE]) {
 
     packetSender.sendStopNormalBroadcasts();
     if (channelIndex != FIRST_CHANNEL - 1) {
-        for (uint8_t i = 0; i < openProcessIndex; i++) {
+        for (size_t i = 0; i < openProcessIDs.getSize(); i++) {
             const uint32_t candidatePID = openProcessIDs[i];
             bool inUse = false;
             for (const auto &channel: faderChannels) {
@@ -544,48 +543,43 @@ void processRequestsInit(uint8_t buf[PACKET_SIZE]) {
     const RecProcessRequestInit recProcessRequestInit(buf);
     numChannels = recProcessRequestInit.getNumChannels();
     numPackets = recProcessRequestInit.getNumPackets();
-    openProcessIndex = 0;
-    buf[0] = ACK;
-    usb_rawhid_send(buf, TIMEOUT);
+    openProcessIDs.clear();
+    openProcessNames.clear();
+    packetSender.sendAcknowledge();
 }
 
 // triggered when the computer sends all current processes
-void allCurrentProcesses(uint8_t buf[PACKET_SIZE]) {
+void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]) {
     const RecAllCurrentProcesses recAllCurrentProcesses(buf);
-    openProcessIDs[openProcessIndex] = recAllCurrentProcesses.getPID();;
-    recAllCurrentProcesses.getName(openProcessNames[openProcessIndex]);
-    openProcessIndex++;
-    if (openProcessIndex != numChannels) {
-        openProcessIDs[openProcessIndex] = recAllCurrentProcesses.getPID();
-        recAllCurrentProcesses.getName(openProcessNames[openProcessIndex]);
-        openProcessIndex++;
+    uint8_t i = 0; //only run while loop at most twice
+    while (openProcessIDs.getSize() < numChannels && i < 2) {
+        char name[NAME_LENGTH_MAX];
+        openProcessIDs.push_back(recAllCurrentProcesses.getPID());
+        recAllCurrentProcesses.getName(name);
+        openProcessNames.push_back<NAME_LENGTH_MAX>(name);
+        i++;
     }
 
-    if (numChannels == openProcessIndex) {
+    if (numChannels == openProcessIDs.getSize()) {
         if (faderRequest != -1) {
             faderChannels[faderRequest].menuOpen = true;
             faderChannels[faderRequest].updateScreen = true;
-            faderChannels[faderRequest].processNames = &openProcessNames;
-            faderChannels[faderRequest].processIDs = &openProcessIDs;
-            faderChannels[faderRequest].processIndex = openProcessIndex;
             faderRequest = -1;
         }
     }
 
     // send received
-    buf[0] = ACK;
-    usb_rawhid_send(buf, TIMEOUT);
+    packetSender.sendAcknowledge();
 }
 
 // computer sends info about the icon it is about to send
-void iconPacketsInit(uint8_t buf[PACKET_SIZE]) {
+void iconPacketsInit(const uint8_t buf[PACKET_SIZE]) {
     const RecIconPacketInit recIconPacketInit(buf);
     receivingIcon = true;
     iconPID = recIconPacketInit.getPID();
     iconPages = recIconPacketInit.getPacketCount();
     // send ACK in buf[0] to indicate that we are ready for the first page
-    buf[0] = ACK;
-    usb_rawhid_send(buf, TIMEOUT);
+    packetSender.sendAcknowledge();
 }
 
 // computer sends info about a process

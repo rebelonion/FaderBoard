@@ -81,21 +81,23 @@ void FaderChannel::update() {
 
 void FaderChannel::displayMenu() {
     constexpr int ITEMS_PER_PAGE = 8;
-    const uint8_t numPages = (openProcessIndex + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
+    const uint8_t numPages = (openProcessIDs.getSize() + ITEMS_PER_PAGE - 1) / ITEMS_PER_PAGE;
 
     if (menuIndex >= ITEMS_PER_PAGE) {
         menuPage = min(menuPage + 1, numPages - 1);
         menuIndex = 0;
     } else if (menuIndex < 0) {
         menuPage = max(menuPage - 1, 0);
-        menuIndex = (menuPage < numPages - 1) ? ITEMS_PER_PAGE - 1 : min(openProcessIndex % ITEMS_PER_PAGE - 1, ITEMS_PER_PAGE - 1);
+        menuIndex = (menuPage < numPages - 1)
+                        ? ITEMS_PER_PAGE - 1
+                        : min(openProcessIDs.getSize() % ITEMS_PER_PAGE - 1, ITEMS_PER_PAGE - 1);
     }
 
-    menuIndex = min(menuIndex, min(ITEMS_PER_PAGE - 1, openProcessIndex - menuPage * ITEMS_PER_PAGE - 1));
+    menuIndex = min(menuIndex, min(ITEMS_PER_PAGE - 1, openProcessIDs.getSize() - menuPage * ITEMS_PER_PAGE - 1));
 
     tft->setCursor(0, 0);
-    for (int i = 0; i < ITEMS_PER_PAGE; i++) {
-        if (const int processIdx = menuPage * ITEMS_PER_PAGE + i; processIdx < openProcessIndex) {
+    for (uint32_t i = 0; i < ITEMS_PER_PAGE; i++) {
+        if (const uint32_t processIdx = menuPage * ITEMS_PER_PAGE + i; processIdx < openProcessIDs.getSize()) {
             if (i == menuIndex) {
                 constexpr char SELECTION_INDICATOR = 16;
                 constexpr uint16_t SELECTED_COLOR = 0x00FF;
@@ -108,7 +110,7 @@ void FaderChannel::displayMenu() {
                 tft->print("  ");
             }
 
-            for (int j = 0; j < NAME_LENGTH_MAX && openProcessNames[processIdx][j] != '\0'; j++) {
+            for (uint8_t j = 0; j < NAME_LENGTH_MAX && openProcessNames[processIdx][j] != '\0'; j++) {
                 tft->print(openProcessNames[processIdx][j]);
             }
             tft->println();
@@ -133,9 +135,9 @@ void FaderChannel::onRotaryPress() {
             encoderColor = 0x000011;
             menuOpen = false;
             updateScreen = true;
-            if ((*processIDs)[menuPage * 8 + menuIndex] != appdata.PID) {
+            if (openProcessIDs[menuPage * 8 + menuIndex] != appdata.PID) {
                 requestNewProcess = true;
-                appdata.PID = (*processIDs)[menuPage * 8 + menuIndex];
+                appdata.PID = openProcessIDs[menuPage * 8 + menuIndex];
             }
         } else {
             encoderColor = 0x110000;

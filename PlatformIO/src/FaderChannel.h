@@ -14,38 +14,58 @@ public:
     uint8_t targetVolume = 50;
     uint16_t faderPosition{};
     bool isMuted{};
-    char (*processNames)[50][20]{};
-    uint32_t (*processIDs)[50]{};
-    uint32_t processIndex = 0;
     AppData appdata;
     FaderMotor *motor;
-    FaderChannel(uint8_t _channelNumber, WS2812Serial *_leds, ResponsiveAnalogRead *_pot, CapacitiveSensor *_touch, ST7789_t3 *_tft, uint8_t _forwardPin, uint8_t _backwardPin, bool _isMaster);
+
+    FaderChannel(uint8_t _channelNumber, WS2812Serial *_leds, ResponsiveAnalogRead *_pot, CapacitiveSensor *_touch,
+                 ST7789_t3 *_tft, uint8_t _forwardPin, uint8_t _backwardPin, bool _isMaster);
+
     ~FaderChannel();
+
     void update();
+
     void begin();
+
     void displayMenu();
+
     [[nodiscard]] uint8_t getFaderPosition() const;
+
     void setIcon(const uint16_t _icon[ICON_SIZE][ICON_SIZE], uint16_t _iconWidth, uint16_t _iconHeight);
+
     void setToCurrentChannel() const;
+
     void setMaxVolume(uint8_t volume);
+
     void setCurrentVolume(uint8_t volume) const;
+
     void setMute(bool mute);
+
     void setName(const char _name[20]);
+
     void onButtonPress(uint8_t buttonNumber);
+
     void onRotaryPress();
+
     void onRotaryTurn(bool clockwise);
+
     void setUnused(bool _isUnused);
+
     void setVolumeBarMode(uint8_t mode);
+
     void setUnTouched();
+
     void setTouchSensitivity(float _sensitivity);
+
     void setPositionMin();
+
     void setPositionMax();
+
     [[nodiscard]] bool isUnused() const;
 
 private:
     static constexpr uint32_t ledStates[2][4] = {
-        {ZERO, ONE, TWO, THREE},         // volBarMode 0
-        {ZERO, ONE, JUSTTWO, JUSTTHREE}  // volBarMode 1
+        {ZERO, ONE, TWO, THREE}, // volBarMode 0
+        {ZERO, ONE, JUSTTWO, JUSTTHREE} // volBarMode 1
     };
     uint8_t channelNumber;
     uint16_t iconWidth = 0;
@@ -63,7 +83,7 @@ private:
     uint32_t encoderColor = 0x000011;
     uint32_t baselineTouch = 0;
     uint32_t lastTouchChange = 0;
-    float touchSensitivity = 1.5f;  //TODO: allow this to be changed in the menu
+    float touchSensitivity = 1.5f; //TODO: allow this to be changed in the menu
     bool userTouching = false;
     bool isMaster = false;
     bool isUnUsed = false;
@@ -76,6 +96,6 @@ private:
     const uint32_t TOUCH_DEBOUNCE_TIME = 100;
 
     void drawIcon(uint16_t x, uint16_t y, uint16_t width, uint16_t height) const;
-    void setSelected(bool selected) const;
 
+    void setSelected(bool selected) const;
 };

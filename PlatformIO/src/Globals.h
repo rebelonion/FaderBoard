@@ -6,7 +6,7 @@
 #include <ResponsiveAnalogRead.h>
 #include <WS2812Serial.h>
 #include <RoxMux.h>
-
+#include "StaticVector.h"
 #include "smalloc.h"
 
 
@@ -64,7 +64,7 @@ struct StoredData {
     }
 
     uint16_t *iconInUse;
-    int iconPID = 0;
+    uint32_t iconPID = 0;
     char name[NAME_LENGTH_MAX]{};
 
     void storeIcon(uint16_t iconData[ICON_SIZE][ICON_SIZE]) const {
@@ -83,7 +83,7 @@ struct StoredData {
 inline smalloc_pool EXTM_Pool;
 DMAMEM inline uint8_t compressionBuffer[ICON_SIZE * ICON_SIZE * 2 * 21 / 20 + 66]; // 5% larger than input + 66 bytes
 DMAMEM inline uint16_t globalIconBuffer[CHANNELS][ICON_SIZE][ICON_SIZE];
-inline StoredData storedData[25]; // used for storing data in PSRAM (not implemented yet)
+inline StoredData storedData[25]; //TODO: used for storing data in PSRAM (not implemented yet)
 
 // LED Strip
 /***************************************************/
@@ -139,10 +139,9 @@ inline bool normalBroadcast = false;
 
 // Transitory Variables for passing data around
 /***************************************************/
-inline uint16_t bufferIcon[128][128]; // used for passing icon
-inline char openProcessNames[MAX_PROCESSES][NAME_LENGTH_MAX];
-inline uint32_t openProcessIDs[MAX_PROCESSES];
-inline uint8_t openProcessIndex = 0; // index after final element in openProcessNames
+inline uint16_t bufferIcon[ICON_SIZE][ICON_SIZE]; // used for passing icon
+inline StaticVector<uint32_t, MAX_PROCESSES> openProcessIDs;
+inline StaticVector<char[NAME_LENGTH_MAX], MAX_PROCESSES> openProcessNames;
 
 enum SerialCodes {
     UNDEFINED,

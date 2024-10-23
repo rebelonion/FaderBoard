@@ -5,11 +5,17 @@
 
 class PacketSender{
 public:
-    PacketSender();
-    ~PacketSender();
+    PacketSender() = default;
+    ~PacketSender() = default;
 
     void __attribute__((always_inline)) incrementCounter() {
         counter++;
+    }
+
+    void sendAcknowledge() {
+        preparePacket();
+        packet[BasePacketPositions::STATUS_INDEX] = ACK;
+        sendPacket();
     }
 
     void sendStopNormalBroadcasts() {
