@@ -11,6 +11,7 @@
 #include "packets/RecMaxChange.h"
 #include "packets/RecPIDClosed.h"
 #include "packets/PacketSender.h"
+#include "packets/RecIconPacket.h"
 #include "FaderChannel.h"
 
 // Functions
@@ -25,9 +26,13 @@ void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]);
 
 void processRequestsInit(uint8_t buf[PACKET_SIZE]);
 
-uint8_t update(uint8_t *buf);
+void iconPacket(const uint8_t buf[PACKET_SIZE]);
 
-uint8_t requestIcon(uint32_t pid);
+void update(uint8_t *buf);
+
+void requestIcon(uint32_t pid);
+
+void iconIsDefault();
 
 void requestAllProcesses();
 
@@ -36,8 +41,6 @@ void receiveCurrentVolumeLevels(const uint8_t buf[PACKET_SIZE]);
 void sendCurrentSelectedProcesses();
 
 void channelData(const uint8_t buf[PACKET_SIZE]);
-
-void getMaxVolumes();
 
 void changeOfMaxVolume(const uint8_t buf[PACKET_SIZE]);
 
@@ -53,11 +56,6 @@ void updateProcess(uint32_t channel);
 
 
 // Transitory Variables for passing data around
-uint32_t iconPages = 0;
-uint32_t currentIconPage = 0;
-uint32_t iconPID = 0;
-int numPackets = 0;
-size_t numChannels = 0;
 PacketSender packetSender;
 /**************************************************/
 
@@ -213,28 +211,16 @@ void init() {
     for (auto &faderChannel: faderChannels) {
         faderChannel.setUnTouched();
     }
-    requestAllProcesses();
     // fill the 7 fader channels with the first 7 processes
     faderChannels[MASTER_CHANNEL].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
     for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
-        if (openProcessIDs.getSize() >= channel) {
-            faderChannels[channel].appdata.PID = openProcessIDs[channel - 1];
-            faderChannels[channel].setName(openProcessNames[channel - 1]);
-            if (const uint8_t a = requestIcon(faderChannels[channel].appdata.PID); a != THE_ICON_REQUESTED_IS_DEFAULT) {
-                faderChannels[channel].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
-            } else {
-                faderChannels[channel].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
-            }
-        } else {
-            faderChannels[channel].setUnused(true);
-        }
+        faderChannels[channel].setUnused(true);
     }
-    getMaxVolumes();
+    //TODO: initialize data for all channels (allCurrentProcesses -> updateProcess), initializing state?
     for (auto &channel: faderChannels) {
         channel.update();
     }
-    sendCurrentSelectedProcesses();\
-    normalBroadcast = true;
+    sendCurrentSelectedProcesses();
 }
 
 // send the processes of the 7 fader channels to the computer
@@ -248,88 +234,18 @@ void sendCurrentSelectedProcesses() {
 
 // requests all sound processes from the computer
 void requestAllProcesses() {
-    uint32_t millisStart = millis() - 100;
-    uint8_t buf[PACKET_SIZE];
-    int a = 0;
-    bool started = false;
-
-    while (true) {
-        // send request at 10hz
-        if (millis() - millisStart > 100 && !started) {
-            millisStart = millis();
-            buf[0] = REQUEST_ALL_PROCESSES;
-            usb_rawhid_send(buf, TIMEOUT);
-        }
-
-        if (usb_rawhid_available() >= PACKET_SIZE) {
-            started = true;
-            usb_rawhid_recv(buf, TIMEOUT);
-            a = update(buf);
-            if (a == 1) //TODO: use a different funtion
-            {
-                break;
-            }
-        }
-    }
+    packetSender.sendRequestAllProcesses();
 }
 
-// get the max volumes of the 7 fader channels from the computer
-void getMaxVolumes() {
-    int iterator = FIRST_CHANNEL;
-    packetSender.sendRequestChannelData(MASTER_REQUEST);
-    while (true) {
-        if (usb_rawhid_available() >= PACKET_SIZE) {
-            uint8_t buf[PACKET_SIZE];
-            usb_rawhid_recv(buf, TIMEOUT);
-            update(buf); //TODO: I'm not a fan of a blocking while loop to update
-            if (iterator > CHANNELS - 1) {
-                break;
-            }
-            packetSender.sendRequestChannelData(faderChannels[iterator].appdata.PID);
-            iterator++;
-        }
-    }
-}
+
 
 // request the icon of a process from the computer UNSAFE, the computer cannot send any other data while this is happening
-uint8_t requestIcon(const uint32_t pid) {
-    iconPID = 0;
-    iconPages = 0;
-    currentIconPage = 0;
+void requestIcon(const uint32_t pid) {
     packetSender.sendRequestIcon(pid);
-    uint8_t buf[PACKET_SIZE];
-    while (true) {
-        if (usb_rawhid_available() >= PACKET_SIZE) {
-            usb_rawhid_recv(buf, TIMEOUT);
-
-            if (receivingIcon) {
-                // each pixel is 2 bytes and we are expecting a 128x128 icon
-                // icons are sent left to right, top to bottom in PACKET_SIZE byte chunks
-                for (uint8_t i = 0; i < 32; i++) {
-                    uint16_t color = buf[i * 2];
-                    color |= (static_cast<uint16_t>(buf[i * 2 + 1]) << 8);
-                    // icon is 128x128 matrix, but we are receiving it left to right, top to bottom in 64 byte chunks
-                    bufferIcon[currentIconPage / 4][i + (currentIconPage % 4) * 32] = color;
-                }
-                currentIconPage++;
-                // send 2 in buf[0] to indicate that we are ready for the next page
-                packetSender.sendAcknowledge();
-                if (currentIconPage == iconPages) {
-                    // we have received all the pages of the icon
-                    receivingIcon = false;
-                    return 0;
-                }
-            } else if (buf[0] == ICON_PACKETS_INIT) {
-                iconPacketsInit(buf);
-            } else if (buf[0] == THE_ICON_REQUESTED_IS_DEFAULT) {
-                return THE_ICON_REQUESTED_IS_DEFAULT;
-            }
-        }
-    }
 }
 
-// main update function, some functions use the return value to indicate that they are done
-uint8_t update(uint8_t *buf) {
+// main update function
+void update(uint8_t *buf) {
     switch (buf[0]) {
         // case UNDEFINED:
         // break;
@@ -350,9 +266,9 @@ uint8_t update(uint8_t *buf) {
         // case STOP_NORMAL_BROADCASTS:
         //  should never receive this
         // break;
-        case REQUEST_CHANNEL_DATA:
-            // should never receive this
-            break;
+        //case REQUEST_CHANNEL_DATA:
+        // should never receive this
+        //    break;
         case CHANNEL_DATA:
             channelData(buf);
             break;
@@ -395,16 +311,14 @@ uint8_t update(uint8_t *buf) {
             iconPacketsInit(buf);
             break;
         case ICON_PACKET:
-            break; //TODO:
+            iconPacket(buf);
         case THE_ICON_REQUESTED_IS_DEFAULT:
-            return THE_ICON_REQUESTED_IS_DEFAULT;
+            iconIsDefault();
         case BUTTON_PUSHED:
             break;
         default:
             Serial.println("Warning: Unknown packet received: " + String(buf[0]));
-            return 1;
     }
-    return 0;
 }
 
 // triggered when new volume process is opened up on the computer
@@ -422,14 +336,8 @@ void newPID(const uint8_t buf[PACKET_SIZE]) {
             channel.setName(name);
             channel.targetVolume = volume;
             channel.setMute(mute);
-            packetSender.sendStopNormalBroadcasts();
-            if (const uint8_t a = requestIcon(pid); a == THE_ICON_REQUESTED_IS_DEFAULT) {
-                channel.setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
-            } else {
-                channel.setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
-            }
+            requestIcon(pid);
             sendCurrentSelectedProcesses();
-            packetSender.sendStartNormalBroadcasts();
             return;
         }
     }
@@ -448,7 +356,6 @@ void pidClosed(uint8_t buf[PACKET_SIZE]) {
         }
     }
 
-    packetSender.sendStopNormalBroadcasts();
     if (channelIndex != FIRST_CHANNEL - 1) {
         for (size_t i = 0; i < openProcessIDs.getSize(); i++) {
             const uint32_t candidatePID = openProcessIDs[i];
@@ -461,34 +368,22 @@ void pidClosed(uint8_t buf[PACKET_SIZE]) {
             }
             if (!inUse) {
                 faderChannels[channelIndex].appdata.PID = candidatePID;
-                const uint8_t iconResult = requestIcon(candidatePID);
-                faderChannels[channelIndex].setIcon(
-                    iconResult == THE_ICON_REQUESTED_IS_DEFAULT ? defaultIcon : bufferIcon,
-                    ICON_SIZE,
-                    ICON_SIZE
-                );
+                requestIcon(candidatePID);
                 packetSender.sendRequestChannelData(candidatePID);
                 break;
             }
         }
     }
     sendCurrentSelectedProcesses();
-    packetSender.sendStartNormalBroadcasts();
     packetSender.sendReady();
 }
 
 // triggered when a fader manually selected a new process
 void updateProcess(const uint32_t channel) {
-    packetSender.sendStopNormalBroadcasts();
-    if (const uint8_t res = requestIcon(faderChannels[channel].appdata.PID); res == THE_ICON_REQUESTED_IS_DEFAULT) {
-        faderChannels[channel].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
-    } else {
-        faderChannels[channel].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
-    }
+    requestIcon(faderChannels[channel].appdata.PID);
     packetSender.sendRequestChannelData(faderChannels[channel].appdata.PID);
     faderChannels[channel].requestNewProcess = false;
     sendCurrentSelectedProcesses();
-    packetSender.sendStartNormalBroadcasts();
 }
 
 // sends the current max volume of a channel to the computer
@@ -538,21 +433,25 @@ void receiveCurrentVolumeLevels(const uint8_t buf[PACKET_SIZE]) {
     }
 }
 
-// tells the computer we want to receive all current processes
+// triggered when the computer sends a process request init
 void processRequestsInit(uint8_t buf[PACKET_SIZE]) {
+    if (states.isReceivingChannels()) {
+        Serial.println("Warning: Received process request init while already receiving channels");
+        return;
+    }
     const RecProcessRequestInit recProcessRequestInit(buf);
-    numChannels = recProcessRequestInit.getNumChannels();
-    numPackets = recProcessRequestInit.getNumPackets();
+    states.setReceivingChannels(true);
+    numSentChannels = recProcessRequestInit.getNumChannels();
     openProcessIDs.clear();
     openProcessNames.clear();
-    packetSender.sendAcknowledge();
+    packetSender.sendAcknowledge(recProcessRequestInit.getCount());
 }
 
 // triggered when the computer sends all current processes
 void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]) {
     const RecAllCurrentProcesses recAllCurrentProcesses(buf);
     uint8_t i = 0; //only run while loop at most twice
-    while (openProcessIDs.getSize() < numChannels && i < 2) {
+    while (openProcessIDs.getSize() < numSentChannels && i < 2) {
         char name[NAME_LENGTH_MAX];
         openProcessIDs.push_back(recAllCurrentProcesses.getPID());
         recAllCurrentProcesses.getName(name);
@@ -560,26 +459,50 @@ void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]) {
         i++;
     }
 
-    if (numChannels == openProcessIDs.getSize()) {
-        if (faderRequest != -1) {
+    if (numSentChannels == openProcessIDs.getSize()) {
+        if (faderRequest != -1 && faderRequest < CHANNELS) {
             faderChannels[faderRequest].menuOpen = true;
             faderChannels[faderRequest].updateScreen = true;
             faderRequest = -1;
         }
+        states.setReceivingChannels(false);
     }
-
-    // send received
-    packetSender.sendAcknowledge();
+    packetSender.sendAcknowledge(recAllCurrentProcesses.getCount());
 }
 
 // computer sends info about the icon it is about to send
 void iconPacketsInit(const uint8_t buf[PACKET_SIZE]) {
+    if (states.isReceivingIcon()) {
+        Serial.println("Warning: Received icon packet init while already receiving icon");
+        return;
+    }
     const RecIconPacketInit recIconPacketInit(buf);
-    receivingIcon = true;
-    iconPID = recIconPacketInit.getPID();
-    iconPages = recIconPacketInit.getPacketCount();
-    // send ACK in buf[0] to indicate that we are ready for the first page
-    packetSender.sendAcknowledge();
+    states.setReceivingIcon(true);
+    sentIconPID = recIconPacketInit.getPID();
+    totalIconPackets = recIconPacketInit.getPacketCount();
+    // send ACK in to indicate that we are ready for the first page
+    packetSender.sendAcknowledge(recIconPacketInit.getCount());
+}
+
+// computer sends a page of the icon
+void iconPacket(const uint8_t buf[PACKET_SIZE]) {
+    const RecIconPacket recIconPacket(buf);
+    currentIconPacket++;
+    recIconPacket.emplaceIconData();
+    if (currentIconPacket == totalIconPackets) {
+        //TODO: decompress icon
+        states.setReceivingIcon(false);
+    }
+}
+
+// default icon
+void iconIsDefault() {
+    for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
+        if (faderChannels[channel].appdata.PID == sentIconPID) {
+            faderChannels[channel].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
+        }
+    }
+    states.setReceivingIcon(false);
 }
 
 // computer sends info about a process

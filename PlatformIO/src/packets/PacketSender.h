@@ -12,9 +12,10 @@ public:
         counter++;
     }
 
-    void sendAcknowledge() {
+    void sendAcknowledge(const uint8_t ackPacket) {
         preparePacket();
         packet[BasePacketPositions::STATUS_INDEX] = ACK;
+        packet[BasePacketPositions::NEXT_FREE_INDEX] = ackPacket;
         sendPacket();
     }
 
@@ -79,6 +80,12 @@ public:
         preparePacket();
         packet[BasePacketPositions::STATUS_INDEX] = REQUEST_ICON;
         memcpy(packet + BasePacketPositions::NEXT_FREE_INDEX, &PID, sizeof(uint32_t));
+        sendPacket();
+    }
+
+    void sendRequestAllProcesses() {
+        preparePacket();
+        packet[BasePacketPositions::STATUS_INDEX] = REQUEST_ALL_PROCESSES;
         sendPacket();
     }
 

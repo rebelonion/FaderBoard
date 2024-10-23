@@ -82,6 +82,8 @@ struct StoredData {
 
 inline smalloc_pool EXTM_Pool;
 DMAMEM inline uint8_t compressionBuffer[ICON_SIZE * ICON_SIZE * 2 * 21 / 20 + 66]; // 5% larger than input + 66 bytes
+inline uint32_t compressionIndex = 0;
+inline uint32_t compressionSize = 0;
 DMAMEM inline uint16_t globalIconBuffer[CHANNELS][ICON_SIZE][ICON_SIZE];
 inline StoredData storedData[25]; //TODO: used for storing data in PSRAM (not implemented yet)
 
@@ -134,9 +136,11 @@ static constexpr uint8_t csMuxPins[3] = {30, 31, 32};
 
 // Flags
 /***************************************************/
-inline bool receivingIcon = false;
-inline bool normalBroadcast = false;
-
+//inline bool normalBroadcast = false;
+inline size_t numSentChannels = 0;
+inline uint32_t currentIconPacket = 0;
+inline uint32_t totalIconPackets = 0;
+inline uint32_t sentIconPID = 0;
 // Transitory Variables for passing data around
 /***************************************************/
 inline uint16_t bufferIcon[ICON_SIZE][ICON_SIZE]; // used for passing icon
@@ -171,3 +175,35 @@ enum SerialCodes {
     THE_ICON_REQUESTED_IS_DEFAULT,
     BUTTON_PUSHED
 };
+
+
+inline struct States {
+    void setReceivingIcon(const bool _receivingIcon) {
+        receivingIcon = _receivingIcon;
+        if (receivingIcon) {
+            currentIconPacket = 0;
+            compressionIndex = 0;
+            compressionSize = 0;
+            totalIconPackets = 0;
+            sentIconPID = 0;
+        }
+    }
+
+    [[nodiscard]] bool isReceivingIcon() const {
+        return receivingIcon;
+    }
+
+    void setReceivingChannels(const bool _receivingChannels) {
+        receivingChannels = _receivingChannels;
+        if (!receivingChannels) {
+            numSentChannels = 0;
+        }
+    }
+
+    [[nodiscard]] bool isReceivingChannels() const {
+        return receivingChannels;
+    }
+private:
+    bool receivingIcon = false;
+    bool receivingChannels = false;
+} states;
