@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
+#include "thirdparty/fastlz.h"
 #include "icons.h"
 #include "packets/RecNewPID.h"
 #include "packets/RecChannelData.h"
@@ -12,6 +13,7 @@
 #include "packets/RecPIDClosed.h"
 #include "packets/PacketSender.h"
 #include "packets/RecIconPacket.h"
+#include "ByteArrayQueue.h"
 #include "FaderChannel.h"
 
 // Functions
@@ -175,6 +177,12 @@ void loop() {
 
         faderChannels[i].update();
     }
+    if (!states.isReceivingChannels() && !states.isReceivingIcon() && !sendingQueue.isEmpty()) {
+        uint8_t buf[PACKET_SIZE];
+        if (sendingQueue.pop(buf)) {
+            update(buf);
+        }
+    }
     if (usb_rawhid_available() >= PACKET_SIZE) {
         uint8_t buf[PACKET_SIZE];
         usb_rawhid_recv(buf, TIMEOUT);
@@ -185,6 +193,7 @@ void loop() {
 
 // set fader pot and touch values then get initial data from computer on startup
 void init() {
+    initializing = true;
     for (const auto &faderChannel: faderChannels) {
         faderChannel.motor->forward(65);
     }
@@ -211,16 +220,11 @@ void init() {
     for (auto &faderChannel: faderChannels) {
         faderChannel.setUnTouched();
     }
-    // fill the 7 fader channels with the first 7 processes
     faderChannels[MASTER_CHANNEL].setIcon(defaultIcon, ICON_SIZE, ICON_SIZE);
     for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
         faderChannels[channel].setUnused(true);
     }
-    //TODO: initialize data for all channels (allCurrentProcesses -> updateProcess), initializing state?
-    for (auto &channel: faderChannels) {
-        channel.update();
-    }
-    sendCurrentSelectedProcesses();
+    requestAllProcesses();
 }
 
 // send the processes of the 7 fader channels to the computer
@@ -237,9 +241,7 @@ void requestAllProcesses() {
     packetSender.sendRequestAllProcesses();
 }
 
-
-
-// request the icon of a process from the computer UNSAFE, the computer cannot send any other data while this is happening
+// request the icon of a process from the computer
 void requestIcon(const uint32_t pid) {
     packetSender.sendRequestIcon(pid);
 }
@@ -437,7 +439,9 @@ void receiveCurrentVolumeLevels(const uint8_t buf[PACKET_SIZE]) {
 void processRequestsInit(uint8_t buf[PACKET_SIZE]) {
     if (states.isReceivingChannels()) {
         Serial.println("Warning: Received process request init while already receiving channels");
-        return;
+        if (!sendingQueue.push(buf)) {
+            uncaughtException("Failed to push process request init to queue");
+        }
     }
     const RecProcessRequestInit recProcessRequestInit(buf);
     states.setReceivingChannels(true);
@@ -466,6 +470,18 @@ void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]) {
             faderRequest = -1;
         }
         states.setReceivingChannels(false);
+        if (initializing) {
+            for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
+                if (channel < openProcessIDs.getSize()) {
+                    faderChannels[channel].appdata.PID = openProcessIDs[channel];
+                    faderChannels[channel].setName(openProcessNames[channel]);
+                    requestIcon(openProcessIDs[channel]);
+                } else {
+                    faderChannels[channel].setUnused(true);
+                }
+            }
+            initializing = false;
+        }
     }
     packetSender.sendAcknowledge(recAllCurrentProcesses.getCount());
 }
@@ -474,7 +490,9 @@ void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]) {
 void iconPacketsInit(const uint8_t buf[PACKET_SIZE]) {
     if (states.isReceivingIcon()) {
         Serial.println("Warning: Received icon packet init while already receiving icon");
-        return;
+        if (!sendingQueue.push(buf)) {
+            uncaughtException("Failed to push icon packet init to queue");
+        }
     }
     const RecIconPacketInit recIconPacketInit(buf);
     states.setReceivingIcon(true);
@@ -490,7 +508,18 @@ void iconPacket(const uint8_t buf[PACKET_SIZE]) {
     currentIconPacket++;
     recIconPacket.emplaceIconData();
     if (currentIconPacket == totalIconPackets) {
-        //TODO: decompress icon
+        uint32_t decompressedSize = fastlz_decompress(compressionBuffer, (int) compressionSize, bufferIcon,
+                                                      ICON_SIZE * ICON_SIZE * sizeof(uint16_t));
+        if (decompressedSize != ICON_SIZE * ICON_SIZE * sizeof(uint16_t)) {
+            Serial.println("Error: Decompression failed");
+            uncaughtException("Decompression failed");
+        } else {
+            for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
+                if (faderChannels[channel].appdata.PID == sentIconPID) {
+                    faderChannels[channel].setIcon(bufferIcon, ICON_SIZE, ICON_SIZE);
+                }
+            }
+        }
         states.setReceivingIcon(false);
     }
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <ByteArrayQueue.h>
 #include <ST7789_t3.h>
 #include <CapacitiveSensor.h>
 #include <ResponsiveAnalogRead.h>
@@ -21,7 +22,7 @@ static constexpr uint8_t MASTER_CHANNEL = 0;
 static constexpr uint32_t MASTER_REQUEST = 1;
 static constexpr uint8_t FIRST_CHANNEL = 1;
 static constexpr uint8_t PACKET_SIZE = 64;
-static constexpr size_t TIMEOUT = 100;
+static constexpr size_t TIMEOUT = 50;
 static constexpr size_t SCREEN_WIDTH = 240;
 static constexpr size_t SCREEN_HEIGHT = 240;
 
@@ -141,11 +142,13 @@ inline size_t numSentChannels = 0;
 inline uint32_t currentIconPacket = 0;
 inline uint32_t totalIconPackets = 0;
 inline uint32_t sentIconPID = 0;
+inline bool initializing = false;
 // Transitory Variables for passing data around
 /***************************************************/
 inline uint16_t bufferIcon[ICON_SIZE][ICON_SIZE]; // used for passing icon
 inline StaticVector<uint32_t, MAX_PROCESSES> openProcessIDs;
 inline StaticVector<char[NAME_LENGTH_MAX], MAX_PROCESSES> openProcessNames;
+inline ByteArrayQueue<10, PACKET_SIZE> sendingQueue;
 
 enum SerialCodes {
     UNDEFINED,
