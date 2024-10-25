@@ -9,14 +9,13 @@ public:
     }
 
     [[nodiscard]] __attribute__((always_inline)) uint8_t getMasterMaxVolume() const {
-        return data[MASTER_MAX_VOLUME_INDEX];
+        return data[Positions::MASTER_MAX_VOLUME_INDEX];
     }
 
     [[nodiscard]] __attribute__((always_inline)) bool isMasterMuted() const {
-        return data[MATER_MAX_MUTE_INDEX] == 1;
+        return data[Positions::MASTER_MAX_MUTE_INDEX] == 1;
     }
 
 private:
-    static constexpr uint8_t MASTER_MAX_VOLUME_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
-    static constexpr uint8_t MATER_MAX_MUTE_INDEX = MASTER_MAX_VOLUME_INDEX + sizeof(uint8_t);
+    using Positions = PacketPositions::RecMasterMaxChange;
 };

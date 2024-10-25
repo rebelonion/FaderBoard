@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "BasePacket.h"
 
 class RecProcessRequestInit final : public BasePacket {
 public:
@@ -8,9 +9,9 @@ public:
   }
 
   [[nodiscard]] __attribute__((always_inline)) uint8_t getNumChannels() const {
-    return data[NUMBER_OF_CHANNELS_INDEX];
+    return data[Process::NUMBER_OF_CHANNELS_INDEX];
   }
 
 private:
-  static constexpr uint8_t NUMBER_OF_CHANNELS_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
+  using Process = PacketPositions::RecProcessRequestInit;
 };

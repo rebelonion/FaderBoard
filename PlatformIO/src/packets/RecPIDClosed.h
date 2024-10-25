@@ -10,10 +10,10 @@ public:
 
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID() const {
         uint32_t value;
-        memcpy(&value, data + PID_INDEX, sizeof(uint32_t));
+        memcpy(&value, data + Process::PID_INDEX, sizeof(uint32_t));
         return value;
     }
 
 private:
-    static constexpr uint8_t PID_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
+    using Process = PacketPositions::RecPIDClosed;
 };

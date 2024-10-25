@@ -9,11 +9,10 @@ public:
     }
 
     __attribute__((always_inline)) void emplaceIconData() const {
-        memcpy(&compressionBuffer[compressionIndex], data + ICON_INDEX, NUM_ICON_BYTES_SENT);
-        compressionIndex += NUM_ICON_BYTES_SENT;
+        memcpy(&compressionBuffer[compressionIndex], data + Positions::ICON_INDEX, Positions::NUM_ICON_BYTES_SENT);
+        compressionIndex += Positions::NUM_ICON_BYTES_SENT;
     }
 
 private:
-    static constexpr uint8_t ICON_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
-    static constexpr uint8_t NUM_ICON_BYTES_SENT = PACKET_SIZE - ICON_INDEX;
+    using Positions = PacketPositions::RecIconPacket;
 };

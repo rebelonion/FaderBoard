@@ -10,18 +10,17 @@ public:
 
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID() const {
         uint32_t value;
-        memcpy(&value, data + ICON_PID_INDEX, sizeof(uint32_t));
+        memcpy(&value, data + Positions::ICON_PID_INDEX, sizeof(uint32_t));
         return value;
     }
 
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPacketCount() const {
         uint32_t value;
-        memcpy(&value, data + ICON_PACKET_COUNT_INDEX, sizeof(uint32_t));
+        memcpy(&value, data + Positions::ICON_PACKET_COUNT_INDEX, sizeof(uint32_t));
         return value;
     }
 
 
 private:
-    static constexpr uint8_t ICON_PID_INDEX = BasePacketPositions::NEXT_FREE_INDEX;
-    static constexpr uint8_t ICON_PACKET_COUNT_INDEX = ICON_PID_INDEX + sizeof(uint32_t);
+    using Positions = PacketPositions::RecIconPacketInit;
 };
