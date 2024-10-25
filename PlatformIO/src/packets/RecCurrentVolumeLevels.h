@@ -19,5 +19,5 @@ public:
     }
 
 private:
-    using Positions = PacketPositions::RecCurrentVolumeLevels;
+    using Positions = PacketPositions::CurrentVolumeLevels;
 };

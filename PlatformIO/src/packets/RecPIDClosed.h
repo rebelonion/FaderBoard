@@ -15,5 +15,5 @@ public:
     }
 
 private:
-    using Process = PacketPositions::RecPIDClosed;
+    using Process = PacketPositions::PIDClosed;
 };

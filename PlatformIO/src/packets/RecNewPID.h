@@ -29,5 +29,5 @@ public:
     }
 
 private:
-    using Process = PacketPositions::RecNewPID;
+    using Process = PacketPositions::NewPID;
 };

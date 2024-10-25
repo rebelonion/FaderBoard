@@ -13,5 +13,5 @@ public:
   }
 
 private:
-  using Process = PacketPositions::RecProcessRequestInit;
+  using Process = PacketPositions::ProcessRequestInit;
 };

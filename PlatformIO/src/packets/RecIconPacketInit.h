@@ -22,5 +22,5 @@ public:
 
 
 private:
-    using Positions = PacketPositions::RecIconPacketInit;
+    using Positions = PacketPositions::IconPacketInit;
 };

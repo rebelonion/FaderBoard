@@ -28,5 +28,5 @@ public:
         memcpy(name, &data[Positions::NAME_INDEX_2], NAME_LENGTH_MAX);
     }
 private:
-    using Positions = PacketPositions::RecAllCurrentProcesses;
+    using Positions = PacketPositions::AllCurrentProcesses;
 };

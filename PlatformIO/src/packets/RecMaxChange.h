@@ -23,5 +23,5 @@ public:
     }
 
 private:
-    using Process = PacketPositions::RecMaxChange;
+    using Process = PacketPositions::MaxChange;
 };

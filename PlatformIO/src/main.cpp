@@ -377,7 +377,6 @@ void pidClosed(uint8_t buf[PACKET_SIZE]) {
         }
     }
     sendCurrentSelectedProcesses();
-    packetSender.sendReady();
 }
 
 // triggered when a fader manually selected a new process
@@ -471,15 +470,20 @@ void allCurrentProcesses(const uint8_t buf[PACKET_SIZE]) {
         }
         states.setReceivingChannels(false);
         if (initializing) {
+            uint32_t PIDs[CHANNELS - 1];
+            uint32_t count = 0;
             for (uint8_t channel = FIRST_CHANNEL; channel < CHANNELS; channel++) {
                 if (channel < openProcessIDs.getSize()) {
                     faderChannels[channel].appdata.PID = openProcessIDs[channel];
                     faderChannels[channel].setName(openProcessNames[channel]);
                     requestIcon(openProcessIDs[channel]);
+                    PIDs[count] = openProcessIDs[channel];
+                    count++;
                 } else {
                     faderChannels[channel].setUnused(true);
                 }
             }
+            packetSender.sendCurrentSelectedProcesses(PIDs, count);
             initializing = false;
         }
     }

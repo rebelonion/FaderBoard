@@ -17,5 +17,5 @@ public:
     }
 
 private:
-    using Positions = PacketPositions::RecMasterMaxChange;
+    using Positions = PacketPositions::MasterMaxChange;
 };

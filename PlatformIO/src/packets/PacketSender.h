@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "Globals.h"
+#include "PacketPositions.h"
 
 class PacketSender {
 public:
@@ -14,9 +15,10 @@ public:
     }
 
     void sendAcknowledge(const uint8_t ackPacket) {
+        using Packet = PacketPositions::AcknowledgePacket;
         preparePacket();
         packet[Base::STATUS_INDEX] = ACK;
-        packet[Base::NEXT_FREE_INDEX] = ackPacket;
+        packet[Packet::ACK_PACKET_INDEX] = ackPacket;
         sendPacket();
     }
 
@@ -32,55 +34,47 @@ public:
         sendPacket();
     }
 
-    void sendReady() {
-        preparePacket();
-        packet[Base::STATUS_INDEX] = READY;
-        sendPacket();
-    }
-
     void sendRequestChannelData(const uint32_t PID) {
+        using Packet = PacketPositions::RequestChannelData;
         preparePacket();
         packet[Base::STATUS_INDEX] = REQUEST_CHANNEL_DATA;
-        memcpy(packet + Base::NEXT_FREE_INDEX, &PID, sizeof(uint32_t));
+        memcpy(packet + Packet::PID_INDEX, &PID, sizeof(uint32_t));
         sendPacket();
     }
 
     void sendChangeOfChannel(const uint32_t PID, const uint8_t volume, const bool muted) {
+        using Packet = PacketPositions::ChangeOfChannel;
         preparePacket();
         packet[Base::STATUS_INDEX] = CHANGE_OF_MAX_VOLUME;
-        uint8_t i = Base::NEXT_FREE_INDEX;
-        memcpy(packet + i, &PID, sizeof(uint32_t));
-        i += sizeof(uint32_t);
-        memcpy(packet + i, &volume, sizeof(uint8_t));
-        i += sizeof(uint8_t);
-        packet[i] = muted;
+        memcpy(packet + Packet::PID_INDEX, &PID, sizeof(uint32_t));;
+        memcpy(packet + Packet::VOLUME_INDEX, &volume, sizeof(uint8_t));
+        packet[Packet::MUTED_INDEX] = muted;
         sendPacket();
     }
 
     void sendChangeOfMasterChannel(const uint8_t volume, const bool muted) {
+        using Packet = PacketPositions::ChangeOfMasterChannel;
         preparePacket();
         packet[Base::STATUS_INDEX] = CHANGE_OF_MASTER_MAX;
-        uint8_t i = Base::NEXT_FREE_INDEX;
-        memcpy(packet + i, &volume, sizeof(uint8_t));
-        i += sizeof(uint8_t);
-        packet[i] = muted;
+        memcpy(packet + Packet::VOLUME_INDEX, &volume, sizeof(uint8_t));
+        packet[Packet::MUTED_INDEX] = muted;
         sendPacket();
     }
 
     void sendCurrentSelectedProcesses(const uint32_t *PIDs, const uint8_t count) {
+        using Packet = PacketPositions::CurrentSelectedProcesses;
         preparePacket();
         packet[Base::STATUS_INDEX] = CURRENT_SELECTED_PROCESSES;
-        uint8_t i = Base::NEXT_FREE_INDEX;
-        memcpy(packet + i, &count, sizeof(uint8_t));
-        i += sizeof(uint8_t);
-        memcpy(packet + i, PIDs, count * sizeof(uint32_t));
+        memcpy(packet + Packet::COUNT_INDEX, &count, sizeof(uint8_t));
+        memcpy(packet + Packet::PIDS_INDEX, PIDs, count * sizeof(uint32_t));
         sendPacket();
     }
 
     void sendRequestIcon(const uint32_t PID) {
+        using Packet = PacketPositions::RequestIcon;
         preparePacket();
         packet[Base::STATUS_INDEX] = REQUEST_ICON;
-        memcpy(packet + Base::NEXT_FREE_INDEX, &PID, sizeof(uint32_t));
+        memcpy(packet + Packet::PID_INDEX, &PID, sizeof(uint32_t));
         sendPacket();
     }
 

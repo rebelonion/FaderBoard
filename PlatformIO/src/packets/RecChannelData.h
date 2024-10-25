@@ -31,5 +31,5 @@ public:
     }
 
 private:
-    using Positions = PacketPositions::RecChannelData;
+    using Positions = PacketPositions::ChannelData;
 };
