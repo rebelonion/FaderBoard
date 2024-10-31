@@ -15,6 +15,19 @@ public:
         }
     }
 
+    void remove_at(size_t index) {
+        if (index >= size) {
+            return;
+        }
+
+        // Calculate bytes to move
+        if (const size_t bytes_to_move = sizeof(T) * (size - index - 1); bytes_to_move > 0) {
+            memcpy(&data[index], &data[index + 1], bytes_to_move);
+        }
+
+        --size;
+    }
+
     template<size_t M>
      void push_back(const char (&value)[M]) {
         if (size < N) {

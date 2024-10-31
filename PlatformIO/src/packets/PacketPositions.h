@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Globals.h>
-#include <Arduino.h>
+#include <cstdint>
+#include "Globals.h"
 
 namespace PacketPositions {
     /**
@@ -79,18 +79,21 @@ namespace PacketPositions {
      * @brief Field positions for CurrentVolumeLevels packet (C2F)
      *
      * Memory layout for each channel (repeats up to 7 times):
-     * [Base Headers][CH0_PID 4B][CH0_VOL 1B][CH1_PID 4B][CH1_VOL 1B]...[CH6_PID 4B][CH6_VOL 1B]
+     * [Base Headers][Num Ch 1B][CH0_PID 4B][CH0_VOL 1B][CH1_PID 4B][CH1_VOL 1B]...[CH6_PID 4B][CH6_VOL 1B]
      *
      * Used to retrieve current volume levels for up to 7 audio channels.
      * Each channel entry contains its process ID and current volume level.
      */
     struct CurrentVolumeLevels {
         /// Size of data for each channel (PID + volume)
-        static constexpr size_t CHANNEL_SIZE = sizeof(uint32_t) + sizeof(uint8_t);
+        static constexpr uint32_t CHANNEL_SIZE = sizeof(uint32_t) + sizeof(uint8_t);
+
+        /// Number of channels to receive volume data for (1 byte)
+        static constexpr uint8_t NUM_CHANNELS_INDEX = Base::NEXT_FREE_INDEX;
 
         /// Process ID for a channel (4 bytes)
         /// Access with: PID_INDEX + (channelIndex * CHANNEL_SIZE)
-        static constexpr uint8_t PID_INDEX = Base::NEXT_FREE_INDEX;
+        static constexpr uint8_t PID_INDEX = NUM_CHANNELS_INDEX + sizeof(uint8_t);
 
         /// Volume level for a channel (1 byte)
         /// Access with: VOLUME_INDEX + (channelIndex * CHANNEL_SIZE)
@@ -130,43 +133,9 @@ namespace PacketPositions {
 
         /// Total number of icon packets to expect (4 bytes)
         static constexpr uint8_t ICON_PACKET_COUNT_INDEX = ICON_PID_INDEX + sizeof(uint32_t);
-    };
 
-    /**
-     * @brief Field positions for MasterMaxChange packet (C2F)
-     *
-     * Memory layout:
-     * [Base Headers][MAX_VOLUME 1B][MUTE_STATUS 1B]
-     *
-     * Used to receive updates to master channel settings.
-     * Contains the master channel's maximum volume level and mute status.
-     */
-    struct MasterMaxChange {
-        /// Maximum volume setting for master channel (1 byte)
-        static constexpr uint8_t MASTER_MAX_VOLUME_INDEX = Base::NEXT_FREE_INDEX;
-
-        /// Mute status for master channel (1 byte - boolean)
-        static constexpr uint8_t MASTER_MAX_MUTE_INDEX = MASTER_MAX_VOLUME_INDEX + sizeof(uint8_t);
-    };
-
-    /**
-     * @brief Field positions for MaxChange packet (C2F)
-     *
-     * Memory layout:
-     * [Base Headers][PID 4B][MAX_VOLUME 1B][MUTE_STATUS 1B]
-     *
-     * Used to receive volume setting changes for a specific process.
-     * Similar to RecMasterMaxChange but includes process identification.
-     */
-    struct MaxChange {
-        /// Process ID for the target channel (4 bytes)
-        static constexpr uint8_t PID_INDEX = Base::NEXT_FREE_INDEX;
-
-        /// Maximum volume setting (1 byte)
-        static constexpr uint8_t MAX_VOLUME_INDEX = PID_INDEX + sizeof(uint32_t);
-
-        /// Mute status (1 byte - boolean)
-        static constexpr uint8_t IS_MUTED_INDEX = MAX_VOLUME_INDEX + sizeof(uint8_t);
+        /// Total number of bytes (4 bytes)
+        static constexpr  uint8_t ICON_BYTE_COUNT_INDEX = ICON_PACKET_COUNT_INDEX + sizeof(uint32_t);
     };
 
     /**
@@ -218,7 +187,7 @@ namespace PacketPositions {
      */
     struct ProcessRequestInit {
         /// Number of channels that will be described in following packets (1 byte)
-        static constexpr uint8_t NUMBER_OF_CHANNELS_INDEX = Base::NEXT_FREE_INDEX;
+        static constexpr uint8_t NUM_CHANNELS_INDEX = Base::NEXT_FREE_INDEX;
     };
 
     /**
@@ -230,8 +199,11 @@ namespace PacketPositions {
      * Used to acknowledge receipt of a specific packet type.
      */
     struct AcknowledgePacket {
-        /// Packet type being acknowledged (1 byte)
+        /// Packet index being acknowledged (1 byte)
         static constexpr uint8_t ACK_PACKET_INDEX = Base::NEXT_FREE_INDEX;
+        /// packet tupe being acknowledged (1 byte)
+        static constexpr uint8_t ACK_TYPE_INDEX = ACK_PACKET_INDEX + sizeof(uint8_t);
+
     };
 
     /**
@@ -350,4 +322,19 @@ namespace PacketPositions {
     struct RequestAllProcesses {
         // No additional fields beyond base headers
     };
+
+    /**
+     * @brief Field positions for IconIsDefault packet (C2F)
+     *
+     * Memory layout:
+     * [Base Headers][PID 4B]
+     *
+     * Used to notify the computer that the requested icon is the default icon.
+     * Contains no PID of process that the icon is for.
+     */
+    struct IconIsDefault {
+        /// Process ID (4 bytes)
+        static constexpr uint8_t PID_INDEX = Base::NEXT_FREE_INDEX;
+    };
 }
+

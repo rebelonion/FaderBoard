@@ -6,7 +6,7 @@
 FaderChannel::FaderChannel(const uint8_t _channelNumber, WS2812Serial *_leds, ResponsiveAnalogRead *_pot,
                            CapacitiveSensor *_touch, ST7789_t3 *_tft,
                            const uint8_t _forwardPin, const uint8_t _backwardPin,
-                           const bool _isMaster) : appdata(_isMaster) {
+                           const bool _isMaster) : appdata(_isMaster, _channelNumber) {
     for (int i = 0; i < 3; i++) {
         pinMode(potMuxPins[i], OUTPUT);
         pinMode(touchMuxPins[i], OUTPUT);
@@ -167,7 +167,7 @@ void FaderChannel::onRotaryTurn(const bool clockwise) {
 void FaderChannel::drawIcon(const uint16_t x, const uint16_t y, const uint16_t width, const uint16_t height) const {
     for (uint16_t i = 0; i < width; i++) {
         for (uint16_t j = 0; j < height; j++) {
-            tft->drawPixel(x + i, y + j, appdata.iconInUse[i + j * width]);
+            tft->drawPixel(x + i, y + j, appdata.iconBuffer[i][j]);
         }
     }
 }
@@ -175,7 +175,8 @@ void FaderChannel::drawIcon(const uint16_t x, const uint16_t y, const uint16_t w
 void FaderChannel::setIcon(const uint16_t _icon[ICON_SIZE][ICON_SIZE], const uint16_t _iconWidth,
                            const uint16_t _iconHeight) {
     isUnUsed = false;
-    memcpy(appdata.iconInUse, _icon, ICON_SIZE * ICON_SIZE * sizeof(uint16_t));
+    memcpy(appdata.iconBuffer, _icon,
+           ICON_SIZE * ICON_SIZE * sizeof(uint16_t));
     iconWidth = _iconWidth;
     iconHeight = _iconHeight;
     updateScreen = true;
@@ -201,7 +202,7 @@ void FaderChannel::setMaxVolume(uint8_t volume) {
 }
 
 void FaderChannel::setCurrentVolume(const uint8_t volume) const {
-    uint8_t mappedVolume = map(volume, 0, 100, 0, 24);
+    uint8_t mappedVolume = volume;
     int i = 0;
 
     if (!isMuted) {
@@ -239,11 +240,17 @@ void FaderChannel::setSelected(const bool selected) const {
 }
 
 void FaderChannel::setName(const char _name[20]) {
-    updateScreen = true;
     name = "";
+    bool difference = false;
     for (int i = 0; i < 20; i++) {
         strcpy(&appdata.name[i], &_name[i]);
         name += _name[i];
+        if (name[i] != _name[i]) {
+            difference = true;
+        }
+    }
+    if (difference) {
+        updateScreen = true;
     }
 }
 
@@ -253,6 +260,7 @@ void FaderChannel::setUnused(const bool _isUnused) {
         targetVolume = 0;
         setName("None               ");
         appdata.PID = UINT32_MAX;
+        updateScreen = true;
     }
 }
 

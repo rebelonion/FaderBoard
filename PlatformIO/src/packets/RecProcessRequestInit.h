@@ -9,7 +9,7 @@ public:
   }
 
   [[nodiscard]] __attribute__((always_inline)) uint8_t getNumChannels() const {
-    return data[Process::NUMBER_OF_CHANNELS_INDEX];
+    return data[Process::NUM_CHANNELS_INDEX];
   }
 
 private:

@@ -20,6 +20,11 @@ public:
         return value;
     }
 
+    [[nodiscard]] __attribute__((always_inline)) uint32_t getByteCount() const {
+        uint32_t value;
+        memcpy(&value, data + Positions::ICON_BYTE_COUNT_INDEX, sizeof(uint32_t));
+        return value;
+    }
 
 private:
     using Positions = PacketPositions::IconPacketInit;

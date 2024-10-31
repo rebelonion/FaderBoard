@@ -8,6 +8,10 @@ public:
     explicit RecCurrentVolumeLevels(const uint8_t *_data) : BasePacket(_data) {
     }
 
+    [[nodiscard]] __attribute__((always_inline)) uint8_t getChannelCount() const {
+        return data[Positions::NUM_CHANNELS_INDEX];
+    }
+
     [[nodiscard]] __attribute__((always_inline)) uint32_t getPID(const uint8_t channelIndex) const {
         uint32_t value;
         memcpy(&value, data + Positions::PID_INDEX + channelIndex * Positions::CHANNEL_SIZE, sizeof(uint32_t));

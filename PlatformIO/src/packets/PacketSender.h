@@ -14,11 +14,12 @@ public:
         counter++;
     }
 
-    void sendAcknowledge(const uint8_t ackPacket) {
+    void sendAcknowledge(const uint8_t ackPacket, const AckType type) {
         using Packet = PacketPositions::AcknowledgePacket;
         preparePacket();
         packet[Base::STATUS_INDEX] = ACK;
         packet[Packet::ACK_PACKET_INDEX] = ackPacket;
+        packet[Packet::ACK_TYPE_INDEX] = type;
         sendPacket();
     }
 
@@ -42,26 +43,24 @@ public:
         sendPacket();
     }
 
-    void sendChangeOfChannel(const uint32_t PID, const uint8_t volume, const bool muted) {
-        using Packet = PacketPositions::ChangeOfChannel;
+    void sendChannelData(const bool isMaster, const uint8_t maxVolume, const bool isMuted, const uint32_t PID,
+                         const char name[NAME_LENGTH_MAX]) {
+        using Packet = PacketPositions::ChannelData;
         preparePacket();
-        packet[Base::STATUS_INDEX] = CHANGE_OF_MAX_VOLUME;
-        memcpy(packet + Packet::PID_INDEX, &PID, sizeof(uint32_t));;
-        memcpy(packet + Packet::VOLUME_INDEX, &volume, sizeof(uint8_t));
-        packet[Packet::MUTED_INDEX] = muted;
-        sendPacket();
-    }
-
-    void sendChangeOfMasterChannel(const uint8_t volume, const bool muted) {
-        using Packet = PacketPositions::ChangeOfMasterChannel;
-        preparePacket();
-        packet[Base::STATUS_INDEX] = CHANGE_OF_MASTER_MAX;
-        memcpy(packet + Packet::VOLUME_INDEX, &volume, sizeof(uint8_t));
-        packet[Packet::MUTED_INDEX] = muted;
+        packet[Base::STATUS_INDEX] = CHANNEL_DATA;
+        packet[Packet::IS_MASTER_INDEX] = isMaster;
+        packet[Packet::MAX_VOLUME_INDEX] = maxVolume;
+        packet[Packet::IS_MUTED_INDEX] = isMuted;
+        memcpy(packet + Packet::PID_INDEX, &PID, sizeof(uint32_t));
+        memcpy(packet + Packet::NAME_INDEX, name, NAME_LENGTH_MAX);
         sendPacket();
     }
 
     void sendCurrentSelectedProcesses(const uint32_t *PIDs, const uint8_t count) {
+        if (count == 0) {
+            return;
+        }
+        Serial.println("Sending " + String(count) + " selected processes");
         using Packet = PacketPositions::CurrentSelectedProcesses;
         preparePacket();
         packet[Base::STATUS_INDEX] = CURRENT_SELECTED_PROCESSES;
@@ -97,7 +96,8 @@ private:
 
     __attribute__((always_inline)) void sendPacket() const {
         // 0 is timeout, -1 is usb not available, > 0 is success
-        if (const int32_t result = usb_rawhid_send(packet, TIMEOUT); result <= 0) {
+        Serial.println("Sending packet: " + String(packet[Base::STATUS_INDEX]));
+        if (const int32_t result = RawHID.send(packet, 0); result <= 0) {
             Serial.println("Failed to send packet: " + String(result));
         }
     }

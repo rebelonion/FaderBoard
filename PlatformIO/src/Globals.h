@@ -37,10 +37,12 @@ static constexpr size_t SCREEN_HEIGHT = 240;
 #define SELECTED 0x000055
 
 
+ //inline uint16_t globalIconBuffer[CHANNELS][ICON_SIZE][ICON_SIZE];
+
 // Data Structures
 /***************************************************/
 struct AppData {
-    explicit AppData(const bool _isMaster) : isMaster(_isMaster) {
+    explicit AppData(const bool _isMaster, const uint8_t index) : isMaster(_isMaster) {
         memset(name, 0, sizeof(name));
     }
 
@@ -48,7 +50,7 @@ struct AppData {
     bool isDefaultIcon = false;
     uint32_t PID = 0;
     char name[NAME_LENGTH_MAX]{};
-    uint16_t *iconInUse = nullptr;
+    uint16_t iconBuffer[ICON_SIZE][ICON_SIZE]{};
 };
 
 struct StoredData {
@@ -85,7 +87,6 @@ inline smalloc_pool EXTM_Pool;
 DMAMEM inline uint8_t compressionBuffer[ICON_SIZE * ICON_SIZE * 2 * 21 / 20 + 66]; // 5% larger than input + 66 bytes
 inline uint32_t compressionIndex = 0;
 inline uint32_t compressionSize = 0;
-DMAMEM inline uint16_t globalIconBuffer[CHANNELS][ICON_SIZE][ICON_SIZE];
 inline StoredData storedData[25]; //TODO: used for storing data in PSRAM (not implemented yet)
 
 // LED Strip
@@ -153,7 +154,6 @@ inline ByteArrayQueue<10, PACKET_SIZE> sendingQueue;
 enum SerialCodes {
     UNDEFINED,
     ACK,
-    NACK,
     REQUEST_ALL_PROCESSES,
     PROCESS_REQUEST_INIT,
     ALL_CURRENT_PROCESSES,
@@ -162,20 +162,19 @@ enum SerialCodes {
     REQUEST_CHANNEL_DATA,
     CHANNEL_DATA,
     PID_CLOSED,
-    REQUEST_CURRENT_VOLUME_LEVELS,
     SEND_CURRENT_VOLUME_LEVELS,
-    REQUEST_SELECTED_PROCESSES,
     CURRENT_SELECTED_PROCESSES,
     NEW_PID,
-    CHANGE_OF_MAX_VOLUME,
-    MUTE_PROCESS,
-    CHANGE_OF_MASTER_MAX,
-    MUTE_MASTER,
     REQUEST_ICON,
     ICON_PACKETS_INIT,
     ICON_PACKET,
     THE_ICON_REQUESTED_IS_DEFAULT,
     BUTTON_PUSHED
+};
+
+enum AckType {
+    ICON_ACK,
+    CHANNEL_ACK,
 };
 
 

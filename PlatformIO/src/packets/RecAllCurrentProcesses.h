@@ -8,13 +8,20 @@ public:
     explicit RecAllCurrentProcesses(const uint8_t *_data) : BasePacket(_data) {
     }
 
-    [[nodiscard]] __attribute__((always_inline)) uint32_t getPID() const {
+    [[nodiscard]] __attribute__((always_inline)) uint32_t getPID(const uint8_t index) const {
+        if (index == 1) { //I'm lazy....
+            return getPID2();
+        }
         uint32_t value;
         memcpy(&value, data + Positions::PID_INDEX, sizeof(uint32_t));
         return value;
     }
 
-    void __attribute__((always_inline)) getName(char *name) const {
+    void __attribute__((always_inline)) getName(char *name, const uint8_t index) const {
+        if (index == 1) {
+            getName2(name);
+            return;
+        }
         memcpy(name, &data[Positions::NAME_INDEX], NAME_LENGTH_MAX);
     }
 
